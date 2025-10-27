@@ -28,6 +28,12 @@ class MindMapPainter extends CustomPainter {
   /// Padding inside nodes
   static const double padding = 16.0;
 
+  /// Radius of the expand/collapse indicator button
+  static const double indicatorRadius = 10.0;
+
+  /// Distance of the indicator button from the node edge
+  static const double indicatorPaddingFromEdge = 12.0;
+
   /// Border radius for rounded corners
   static const double borderRadius = 12.0;
 
@@ -61,10 +67,17 @@ class MindMapPainter extends CustomPainter {
 
         textPainter.layout(maxWidth: maxWidth - padding * 2);
 
-        node.size = Size(
-          min(textPainter.width + padding * 2, maxWidth),
-          textPainter.height + padding * 2,
-        );
+        var width = min(textPainter.width + padding * 2, maxWidth);
+        var height = textPainter.height + padding * 2;
+
+        final hasChildren = (childrenMap[node.id]?.isNotEmpty ?? false);
+        if (hasChildren) {
+          final extraSpace = indicatorPaddingFromEdge + indicatorRadius;
+          width += extraSpace;
+          height += extraSpace;
+        }
+
+        node.size = Size(width, height);
       }
     }
   }
@@ -209,11 +222,9 @@ class MindMapPainter extends CustomPainter {
   }
 
   void _paintExpansionIndicator(Canvas canvas, Rect rect, MindMapNode node) {
-    const indicatorRadius = 10.0;
-    const paddingFromEdge = 12.0;
     final indicatorCenter = Offset(
-      rect.right - paddingFromEdge,
-      rect.bottom - paddingFromEdge,
+      rect.right - indicatorPaddingFromEdge,
+      rect.bottom - indicatorPaddingFromEdge,
     );
 
     final backgroundPaint = Paint()
