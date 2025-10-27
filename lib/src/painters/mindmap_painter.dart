@@ -19,6 +19,9 @@ class MindMapPainter extends CustomPainter {
   /// Zoom scale for the canvas
   final double scale;
 
+  /// Mapping of node ids to their direct children ids.
+  final Map<String, List<String>> childrenMap;
+
   /// Maximum width for node labels
   static const double maxWidth = 250.0;
 
@@ -33,6 +36,7 @@ class MindMapPainter extends CustomPainter {
     required this.edges,
     required this.offset,
     required this.scale,
+    required this.childrenMap,
   }) {
     // Calculate sizes for all nodes
     _calculateNodeSizes();
@@ -165,6 +169,11 @@ class MindMapPainter extends CustomPainter {
         node.position.dy - textPainter.height / 2,
       );
       textPainter.paint(canvas, textOffset);
+
+      final hasChildren = (childrenMap[node.id]?.isNotEmpty ?? false);
+      if (hasChildren) {
+        _paintExpansionIndicator(canvas, rect, node);
+      }
     }
 
     canvas.restore();
@@ -196,6 +205,42 @@ class MindMapPainter extends CustomPainter {
       final y = dy > 0 ? halfHeight : -halfHeight;
       final x = y / tan(angle);
       return Offset(center.dx + x, center.dy + y);
+    }
+  }
+
+  void _paintExpansionIndicator(Canvas canvas, Rect rect, MindMapNode node) {
+    const indicatorRadius = 10.0;
+    const paddingFromEdge = 12.0;
+    final indicatorCenter = Offset(
+      rect.right - paddingFromEdge,
+      rect.bottom - paddingFromEdge,
+    );
+
+    final backgroundPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(indicatorCenter, indicatorRadius, backgroundPaint);
+
+    final lineColor = node.color.computeLuminance() > 0.5
+        ? Colors.black87
+        : Colors.black54;
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(indicatorCenter.dx - indicatorRadius * 0.5, indicatorCenter.dy),
+      Offset(indicatorCenter.dx + indicatorRadius * 0.5, indicatorCenter.dy),
+      linePaint,
+    );
+
+    if (!node.isExpanded) {
+      canvas.drawLine(
+        Offset(indicatorCenter.dx, indicatorCenter.dy - indicatorRadius * 0.5),
+        Offset(indicatorCenter.dx, indicatorCenter.dy + indicatorRadius * 0.5),
+        linePaint,
+      );
     }
   }
 

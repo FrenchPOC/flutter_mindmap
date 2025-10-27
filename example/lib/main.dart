@@ -7,7 +7,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MindMapDemo extends StatefulWidget {
-  const MindMapDemo({Key? key}) : super(key: key);
+  const MindMapDemo({super.key});
 
   @override
   State<MindMapDemo> createState() => _MindMapDemoState();
@@ -102,6 +102,10 @@ class _MindMapDemoState extends State<MindMapDemo> {
 
   @override
   Widget build(BuildContext context) {
+    final bool useCollapsedDefaults = currentData == exampleData2;
+    final bool expandAllByDefault = !useCollapsedDefaults;
+    final Set<String>? initialExpansions = useCollapsedDefaults ? {'1'} : null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Flutter MindMap Demo'),
@@ -151,6 +155,8 @@ class _MindMapDemoState extends State<MindMapDemo> {
               key: ValueKey(currentData + useTreeLayout.toString()),
               jsonData: currentData,
               useTreeLayout: useTreeLayout,
+              expandAllNodesByDefault: expandAllByDefault,
+              initiallyExpandedNodeIds: initialExpansions,
             ),
           ),
         ],

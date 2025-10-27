@@ -1,6 +1,6 @@
 name: flutter_mindmap
 description: A Flutter library for rendering interactive mind maps from JSON data with force-directed and tree layout algorithms. Display mind maps with customizable nodes, colors, and interactive pan/zoom gestures.
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/FrenchPOC/flutter_mindmap
 repository: https://github.com/FrenchPOC/flutter_mindmap
 issue_tracker: https://github.com/FrenchPOC/flutter_mindmap/issues

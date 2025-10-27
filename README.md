@@ -37,6 +37,7 @@ A production-ready Flutter library for rendering interactive mind maps from JSON
 - Zoom support (pinch to scale, 0.5x to 3.0x)
 - Smooth animations and transitions
 - Responsive to gestures in real-time
+- Tap nodes to collapse or expand entire branches
 
 📦 **Flexible & Easy**
 - Support for two JSON formats (explicit and nested)
@@ -168,7 +169,27 @@ MindMapWidget(
 )
 ```
 
-### Example 3: Load from File
+### Example 3: Collapsible Tree with Defaults
+
+```dart
+MindMapWidget(
+  jsonData: '''
+  [{
+    "id": "root",
+    "label": "Root Topic",
+    "children": [
+      {"id": "idea-a", "label": "Idea A"},
+      {"id": "idea-b", "label": "Idea B"}
+    ]
+  }]
+  ''',
+  useTreeLayout: true,
+  expandAllNodesByDefault: false,
+  initiallyExpandedNodeIds: {'root'},
+)
+```
+
+### Example 4: Load from File
 
 ```dart
 import 'package:flutter/services.dart';
@@ -204,7 +225,7 @@ class _MindMapFromFileState extends State<MindMapFromFile> {
 }
 ```
 
-### Example 4: Dynamic Data from API
+### Example 5: Dynamic Data from API
 
 ```dart
 import 'package:http/http.dart' as http;
@@ -311,6 +332,9 @@ Main widget for displaying a mind map.
 | `jsonData` | `String` | JSON data for the mind map (required) | - |
 | `useTreeLayout` | `bool` | Use tree layout instead of force-directed | `false` |
 | `backgroundColor` | `Color` | Canvas background color | `Color(0xFFF5F5F5)` |
+| `expandAllNodesByDefault` | `bool` | Expand every node on load unless overridden | `true` |
+| `initiallyExpandedNodeIds` | `Set<String>?` | Node IDs that should start expanded | `null` |
+| `initiallyCollapsedNodeIds` | `Set<String>?` | Node IDs that should start collapsed | `null` |
 | `animationDuration` | `Duration` | Force-directed animation duration | `Duration(seconds: 2)` |
 
 #### Example
@@ -333,6 +357,7 @@ class MindMapNode {
   final String id;                          // Unique identifier
   final String label;                       // Display text
   final List<String> childrenIds;          // IDs of child nodes
+  final bool? initialExpanded;              // Explicit expansion state from JSON
   Offset position;                          // Current position
   Offset velocity;                          // Animation velocity
   Color color;                              // Node color

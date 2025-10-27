@@ -10,7 +10,7 @@ void main() {
 
       expect(node.id, equals('1'));
       expect(node.label, equals('Test Node'));
-      expect(node.color.value, equals(0xFFFF6B6B));
+      expect(node.color.toARGB32(), equals(0xFFFF6B6B));
     });
 
     test('should handle name field as label', () {

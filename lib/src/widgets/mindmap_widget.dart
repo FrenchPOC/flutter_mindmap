@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../models/mindmap_node.dart';
@@ -37,16 +38,34 @@ class MindMapWidget extends StatefulWidget {
   /// Background color of the canvas
   final Color backgroundColor;
 
+  /// Whether nodes should be expanded by default when the widget loads.
+  ///
+  /// Can be overridden per-node via JSON (`isExpanded`, `expanded`, or `collapsed`)
+  /// or by providing `initiallyExpandedNodeIds` / `initiallyCollapsedNodeIds`.
+  final bool expandAllNodesByDefault;
+
+  /// Explicit list of node IDs that should start expanded.
+  ///
+  /// Useful when setting [expandAllNodesByDefault] to `false` but leaving a few
+  /// branches open initially.
+  final Set<String>? initiallyExpandedNodeIds;
+
+  /// Explicit list of node IDs that should start collapsed.
+  final Set<String>? initiallyCollapsedNodeIds;
+
   /// Duration for force-directed animation
   final Duration animationDuration;
 
   const MindMapWidget({
-    Key? key,
+    super.key,
     required this.jsonData,
     this.useTreeLayout = false,
     this.backgroundColor = const Color(0xFFF5F5F5),
+    this.expandAllNodesByDefault = true,
+    this.initiallyExpandedNodeIds,
+    this.initiallyCollapsedNodeIds,
     this.animationDuration = const Duration(seconds: 2),
-  }) : super(key: key);
+  });
 
   @override
   State<MindMapWidget> createState() => _MindMapWidgetState();
@@ -54,8 +73,13 @@ class MindMapWidget extends StatefulWidget {
 
 class _MindMapWidgetState extends State<MindMapWidget>
     with SingleTickerProviderStateMixin {
-  List<MindMapNode> nodes = [];
-  List<MindMapEdge> edges = [];
+  List<MindMapNode> _allNodes = [];
+  List<MindMapEdge> _allEdges = [];
+  List<MindMapNode> _visibleNodes = [];
+  List<MindMapEdge> _visibleEdges = [];
+  Map<String, MindMapNode> _nodeLookup = {};
+  Map<String, List<String>> _childrenMap = {};
+  List<String> _rootIds = [];
   Offset offset = Offset.zero;
   double scale = 1.0;
   Offset? lastFocalPoint;
@@ -64,27 +88,60 @@ class _MindMapWidgetState extends State<MindMapWidget>
   @override
   void initState() {
     super.initState();
-    animationController = AnimationController(
-      vsync: this,
-      duration: widget.animationDuration,
-    )..repeat();
+    animationController =
+        AnimationController(vsync: this, duration: widget.animationDuration)
+          ..addListener(() {
+            if (!widget.useTreeLayout && mounted && _visibleNodes.isNotEmpty) {
+              setState(() {
+                ForceDirectedLayout.calculate(
+                  _visibleNodes,
+                  _visibleEdges,
+                  const Size(800, 600),
+                );
+              });
+            }
+          });
+
+    if (!widget.useTreeLayout) {
+      animationController.repeat();
+    }
 
     _parseData();
-
-    animationController.addListener(() {
-      if (!widget.useTreeLayout && mounted) {
-        setState(() {
-          ForceDirectedLayout.calculate(nodes, edges, const Size(800, 600));
-        });
-      }
-    });
   }
 
   @override
   void didUpdateWidget(MindMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.jsonData != widget.jsonData ||
-        oldWidget.useTreeLayout != widget.useTreeLayout) {
+
+    if (oldWidget.animationDuration != widget.animationDuration) {
+      animationController.duration = widget.animationDuration;
+      if (!widget.useTreeLayout && !animationController.isAnimating) {
+        animationController.repeat();
+      }
+    }
+
+    if (oldWidget.useTreeLayout != widget.useTreeLayout) {
+      if (widget.useTreeLayout) {
+        animationController.stop();
+      } else {
+        animationController.repeat();
+      }
+    }
+
+    final shouldReparse =
+        oldWidget.jsonData != widget.jsonData ||
+        oldWidget.useTreeLayout != widget.useTreeLayout ||
+        oldWidget.expandAllNodesByDefault != widget.expandAllNodesByDefault ||
+        !_setsEqual(
+          oldWidget.initiallyExpandedNodeIds,
+          widget.initiallyExpandedNodeIds,
+        ) ||
+        !_setsEqual(
+          oldWidget.initiallyCollapsedNodeIds,
+          widget.initiallyCollapsedNodeIds,
+        );
+
+    if (shouldReparse) {
       _parseData();
     }
   }
@@ -99,49 +156,191 @@ class _MindMapWidgetState extends State<MindMapWidget>
   void _parseData() {
     try {
       final data = jsonDecode(widget.jsonData);
-
-      nodes.clear();
-      edges.clear();
+      final parsedNodes = <MindMapNode>[];
+      final parsedEdges = <MindMapEdge>[];
 
       if (data is Map && data['nodes'] != null) {
         // Format: {nodes: [...], edges: [...]}
-        nodes = (data['nodes'] as List)
-            .map((n) => MindMapNode.fromJson(n))
-            .toList();
+        parsedNodes.addAll(
+          (data['nodes'] as List).map((n) => MindMapNode.fromJson(n)).toList(),
+        );
 
         if (data['edges'] != null) {
-          edges = (data['edges'] as List)
-              .map((e) => MindMapEdge.fromJson(e))
-              .toList();
+          parsedEdges.addAll(
+            (data['edges'] as List)
+                .map((e) => MindMapEdge.fromJson(e))
+                .toList(),
+          );
         }
       } else if (data is List) {
         // Format: [{id, label, children: [...]}, ...]
-        _parseNestedNodes(data);
+        _parseNestedNodes(data, parsedNodes, parsedEdges);
       }
 
-      // Apply initial layout
-      if (widget.useTreeLayout) {
-        TreeLayout.calculate(nodes, edges, const Size(800, 600));
-      }
+      _allNodes = parsedNodes;
+      _allEdges = parsedEdges;
+
+      _buildGraphStructure();
+      _applyDefaultExpansion();
+      _rebuildVisibility();
+      _runLayout();
+
+      setState(() {});
     } catch (e) {
       debugPrint('Error parsing mindmap data: $e');
     }
   }
 
   /// Recursively parses nested node structure
-  void _parseNestedNodes(List<dynamic> data, [String? parentId]) {
+  void _parseNestedNodes(
+    List<dynamic> data,
+    List<MindMapNode> nodeList,
+    List<MindMapEdge> edgeList, [
+    String? parentId,
+  ]) {
     for (var item in data) {
       final node = MindMapNode.fromJson(item);
-      nodes.add(node);
+      nodeList.add(node);
 
       if (parentId != null) {
-        edges.add(MindMapEdge(fromId: parentId, toId: node.id));
+        edgeList.add(MindMapEdge(fromId: parentId, toId: node.id));
       }
 
       if (item['children'] != null && item['children'] is List) {
-        _parseNestedNodes(item['children'], node.id);
+        _parseNestedNodes(item['children'], nodeList, edgeList, node.id);
       }
     }
+  }
+
+  void _buildGraphStructure() {
+    _nodeLookup = {for (var node in _allNodes) node.id: node};
+
+    _childrenMap = {};
+    final incoming = <String>{};
+
+    for (var edge in _allEdges) {
+      final children = _childrenMap.putIfAbsent(edge.fromId, () => <String>[]);
+      if (!children.contains(edge.toId)) {
+        children.add(edge.toId);
+      }
+      incoming.add(edge.toId);
+    }
+
+    _rootIds = _allNodes
+        .where((node) => !incoming.contains(node.id))
+        .map((node) => node.id)
+        .toList();
+
+    if (_rootIds.isEmpty && _allNodes.isNotEmpty) {
+      _rootIds = [_allNodes.first.id];
+    }
+  }
+
+  void _applyDefaultExpansion() {
+    for (var node in _allNodes) {
+      node.isExpanded = widget.expandAllNodesByDefault;
+      if (node.initialExpanded != null) {
+        node.isExpanded = node.initialExpanded!;
+      }
+    }
+
+    if (widget.initiallyExpandedNodeIds != null) {
+      for (var node in _allNodes) {
+        if (widget.initiallyExpandedNodeIds!.contains(node.id)) {
+          node.isExpanded = true;
+        }
+      }
+    }
+
+    if (widget.initiallyCollapsedNodeIds != null) {
+      for (var node in _allNodes) {
+        if (widget.initiallyCollapsedNodeIds!.contains(node.id)) {
+          node.isExpanded = false;
+        }
+      }
+    }
+  }
+
+  void _rebuildVisibility() {
+    final visibleIds = <String>{};
+    final queue = <String>[];
+
+    if (_rootIds.isEmpty && _allNodes.isNotEmpty) {
+      queue.add(_allNodes.first.id);
+    } else {
+      queue.addAll(_rootIds);
+    }
+
+    while (queue.isNotEmpty) {
+      final currentId = queue.removeAt(0);
+      if (!visibleIds.add(currentId)) continue;
+
+      final node = _nodeLookup[currentId];
+      if (node == null) continue;
+
+      if (node.isExpanded) {
+        queue.addAll(_childrenMap[currentId] ?? const <String>[]);
+      }
+    }
+
+    _visibleNodes = [
+      for (var id in visibleIds)
+        if (_nodeLookup[id] != null) _nodeLookup[id]!,
+    ];
+    _visibleEdges = _allEdges
+        .where(
+          (edge) =>
+              visibleIds.contains(edge.fromId) &&
+              visibleIds.contains(edge.toId),
+        )
+        .toList();
+  }
+
+  void _runLayout() {
+    if (_visibleNodes.isEmpty) return;
+
+    if (widget.useTreeLayout) {
+      TreeLayout.calculate(_visibleNodes, _visibleEdges, const Size(800, 600));
+    } else {
+      ForceDirectedLayout.calculate(
+        _visibleNodes,
+        _visibleEdges,
+        const Size(800, 600),
+      );
+    }
+  }
+
+  void _handleTap(Offset localPosition) {
+    final transformed = (localPosition - offset) / (scale == 0 ? 1.0 : scale);
+
+    for (final node in _visibleNodes.reversed) {
+      final nodeSize = node.size ?? const Size(100, 60);
+      final rect = Rect.fromCenter(
+        center: node.position,
+        width: nodeSize.width,
+        height: nodeSize.height,
+      );
+
+      if (rect.contains(transformed)) {
+        final hasChildren = (_childrenMap[node.id]?.isNotEmpty ?? false);
+        if (!hasChildren) {
+          return;
+        }
+
+        setState(() {
+          node.isExpanded = !node.isExpanded;
+          _rebuildVisibility();
+          _runLayout();
+        });
+        return;
+      }
+    }
+  }
+
+  bool _setsEqual(Set<String>? a, Set<String>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return setEquals(a, b);
   }
 
   @override
@@ -162,14 +361,21 @@ class _MindMapWidgetState extends State<MindMapWidget>
           scale = (scale * details.scale).clamp(0.5, 3.0);
         });
       },
+      onScaleEnd: (details) {
+        lastFocalPoint = null;
+      },
+      onTapUp: (details) {
+        _handleTap(details.localPosition);
+      },
       child: Container(
         color: widget.backgroundColor,
         child: CustomPaint(
           painter: MindMapPainter(
-            nodes: nodes,
-            edges: edges,
+            nodes: _visibleNodes,
+            edges: _visibleEdges,
             offset: offset,
             scale: scale,
+            childrenMap: _childrenMap,
           ),
           size: Size.infinite,
         ),
