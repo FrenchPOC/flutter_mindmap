@@ -28,6 +28,7 @@ class MindMapDemo extends StatefulWidget {
 
 class _MindMapDemoState extends State<MindMapDemo> {
   bool useTreeLayout = false;
+  bool allowNodeOverlap = true;
 
   // Example JSON data format 1: Explicit nodes and edges
   final String exampleData1 = jsonEncode({
@@ -122,6 +123,18 @@ class _MindMapDemoState extends State<MindMapDemo> {
             padding: EdgeInsets.only(right: 16.0),
             child: Center(child: Text('Tree Layout')),
           ),
+          Switch(
+            value: allowNodeOverlap,
+            onChanged: (value) {
+              setState(() {
+                allowNodeOverlap = value;
+              });
+            },
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 16.0),
+            child: Center(child: Text('Allow Overlap')),
+          ),
         ],
       ),
       body: Column(
@@ -155,6 +168,7 @@ class _MindMapDemoState extends State<MindMapDemo> {
               key: ValueKey(currentData + useTreeLayout.toString()),
               jsonData: currentData,
               useTreeLayout: useTreeLayout,
+              allowNodeOverlap: allowNodeOverlap,
               expandAllNodesByDefault: expandAllByDefault,
               initiallyExpandedNodeIds: initialExpansions,
             ),

@@ -332,6 +332,7 @@ Main widget for displaying a mind map.
 | `jsonData` | `String` | JSON data for the mind map (required) | - |
 | `useTreeLayout` | `bool` | Use tree layout instead of force-directed | `false` |
 | `backgroundColor` | `Color` | Canvas background color | `Color(0xFFF5F5F5)` |
+| `allowNodeOverlap` | `bool` | Allow cards to overlap; set to `false` to auto-space nodes | `true` |
 | `expandAllNodesByDefault` | `bool` | Expand every node on load unless overridden | `true` |
 | `initiallyExpandedNodeIds` | `Set<String>?` | Node IDs that should start expanded | `null` |
 | `initiallyCollapsedNodeIds` | `Set<String>?` | Node IDs that should start collapsed | `null` |

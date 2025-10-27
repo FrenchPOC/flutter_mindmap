@@ -1,6 +1,8 @@
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import '../models/mindmap_node.dart';
 import '../models/mindmap_edge.dart';
 import '../layouts/force_directed_layout.dart';
@@ -38,6 +40,12 @@ class MindMapWidget extends StatefulWidget {
   /// Background color of the canvas
   final Color backgroundColor;
 
+  /// Whether rendered cards are allowed to overlap after layout
+  ///
+  /// When set to `false`, a lightweight collision resolution pass keeps
+  /// nodes separated while preserving the overall layout shape.
+  final bool allowNodeOverlap;
+
   /// Whether nodes should be expanded by default when the widget loads.
   ///
   /// Can be overridden per-node via JSON (`isExpanded`, `expanded`, or `collapsed`)
@@ -61,6 +69,7 @@ class MindMapWidget extends StatefulWidget {
     required this.jsonData,
     this.useTreeLayout = false,
     this.backgroundColor = const Color(0xFFF5F5F5),
+    this.allowNodeOverlap = true,
     this.expandAllNodesByDefault = true,
     this.initiallyExpandedNodeIds,
     this.initiallyCollapsedNodeIds,
@@ -98,6 +107,9 @@ class _MindMapWidgetState extends State<MindMapWidget>
                   _visibleEdges,
                   const Size(800, 600),
                 );
+                if (!widget.allowNodeOverlap) {
+                  _resolveOverlaps();
+                }
               });
             }
           });
@@ -139,10 +151,16 @@ class _MindMapWidgetState extends State<MindMapWidget>
         !_setsEqual(
           oldWidget.initiallyCollapsedNodeIds,
           widget.initiallyCollapsedNodeIds,
-        );
+        ) ||
+        oldWidget.allowNodeOverlap != widget.allowNodeOverlap;
 
     if (shouldReparse) {
       _parseData();
+      return;
+    }
+
+    if (oldWidget.allowNodeOverlap != widget.allowNodeOverlap) {
+      setState(_runLayout);
     }
   }
 
@@ -307,6 +325,106 @@ class _MindMapWidgetState extends State<MindMapWidget>
         _visibleEdges,
         const Size(800, 600),
       );
+    }
+
+    if (!widget.allowNodeOverlap) {
+      _resolveOverlaps();
+    }
+  }
+
+  void _ensureNodeSizes() {
+    for (final node in _visibleNodes) {
+      node.size ??= _measureNodeSize(node);
+    }
+  }
+
+  Size _measureNodeSize(MindMapNode node) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: node.label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
+
+    textPainter.layout(
+      maxWidth: MindMapPainter.maxWidth - MindMapPainter.padding * 2,
+    );
+
+    final width = math.min(
+      textPainter.width + MindMapPainter.padding * 2,
+      MindMapPainter.maxWidth,
+    );
+
+    final size = Size(
+      width,
+      textPainter.height + MindMapPainter.padding * 2,
+    );
+
+    return size;
+  }
+
+  void _resolveOverlaps() {
+    if (_visibleNodes.length < 2) {
+      return;
+    }
+
+    _ensureNodeSizes();
+
+    const double separationPadding = 12.0;
+    const int maxIterations = 10;
+
+    for (var iteration = 0; iteration < maxIterations; iteration++) {
+      var overlapFound = false;
+
+      for (var i = 0; i < _visibleNodes.length; i++) {
+        final nodeA = _visibleNodes[i];
+        final sizeA = nodeA.size ?? const Size(100, 60);
+
+        for (var j = i + 1; j < _visibleNodes.length; j++) {
+          final nodeB = _visibleNodes[j];
+          final sizeB = nodeB.size ?? const Size(100, 60);
+
+          final dx = nodeA.position.dx - nodeB.position.dx;
+          final dy = nodeA.position.dy - nodeB.position.dy;
+
+          final overlapX =
+              (sizeA.width + sizeB.width) / 2 + separationPadding - dx.abs();
+          final overlapY =
+              (sizeA.height + sizeB.height) / 2 + separationPadding - dy.abs();
+
+          if (overlapX <= 0 || overlapY <= 0) {
+            continue;
+          }
+
+          overlapFound = true;
+
+          if (overlapX < overlapY) {
+            final direction = dx == 0
+                ? (i.isEven ? 1.0 : -1.0)
+                : dx.sign;
+            final shift = overlapX / 2 * direction;
+            nodeA.position = nodeA.position.translate(shift, 0);
+            nodeB.position = nodeB.position.translate(-shift, 0);
+          } else {
+            final direction = dy == 0
+                ? (i.isEven ? 1.0 : -1.0)
+                : dy.sign;
+            final shift = overlapY / 2 * direction;
+            nodeA.position = nodeA.position.translate(0, shift);
+            nodeB.position = nodeB.position.translate(0, -shift);
+          }
+        }
+      }
+
+      if (!overlapFound) {
+        break;
+      }
     }
   }
 
