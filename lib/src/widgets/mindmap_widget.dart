@@ -361,10 +361,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
       MindMapPainter.maxWidth,
     );
 
-    final size = Size(
-      width,
-      textPainter.height + MindMapPainter.padding * 2,
-    );
+    final size = Size(width, textPainter.height + MindMapPainter.padding * 2);
 
     return size;
   }
@@ -378,6 +375,8 @@ class _MindMapWidgetState extends State<MindMapWidget>
 
     const double separationPadding = 12.0;
     const int maxIterations = 10;
+    final originalCenter = _computeCentroid(_visibleNodes);
+    var anyOverlap = false;
 
     for (var iteration = 0; iteration < maxIterations; iteration++) {
       var overlapFound = false;
@@ -392,6 +391,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
 
           final dx = nodeA.position.dx - nodeB.position.dx;
           final dy = nodeA.position.dy - nodeB.position.dy;
+          final tieBreakDirection = ((i + j).isEven ? -1.0 : 1.0);
 
           final overlapX =
               (sizeA.width + sizeB.width) / 2 + separationPadding - dx.abs();
@@ -405,16 +405,12 @@ class _MindMapWidgetState extends State<MindMapWidget>
           overlapFound = true;
 
           if (overlapX < overlapY) {
-            final direction = dx == 0
-                ? (i.isEven ? 1.0 : -1.0)
-                : dx.sign;
+            final direction = dx == 0 ? tieBreakDirection : dx.sign;
             final shift = overlapX / 2 * direction;
             nodeA.position = nodeA.position.translate(shift, 0);
             nodeB.position = nodeB.position.translate(-shift, 0);
           } else {
-            final direction = dy == 0
-                ? (i.isEven ? 1.0 : -1.0)
-                : dy.sign;
+            final direction = dy == 0 ? tieBreakDirection : dy.sign;
             final shift = overlapY / 2 * direction;
             nodeA.position = nodeA.position.translate(0, shift);
             nodeB.position = nodeB.position.translate(0, -shift);
@@ -425,7 +421,43 @@ class _MindMapWidgetState extends State<MindMapWidget>
       if (!overlapFound) {
         break;
       }
+
+      anyOverlap = true;
     }
+
+    if (!anyOverlap) {
+      return;
+    }
+
+    final adjustedCenter = _computeCentroid(_visibleNodes);
+    final delta = adjustedCenter - originalCenter;
+
+    if (delta != Offset.zero) {
+      for (final node in _visibleNodes) {
+        node.position -= delta;
+      }
+    }
+
+    for (final node in _visibleNodes) {
+      node.velocity = Offset.zero;
+    }
+  }
+
+  Offset _computeCentroid(List<MindMapNode> nodes) {
+    if (nodes.isEmpty) {
+      return Offset.zero;
+    }
+
+    var sumX = 0.0;
+    var sumY = 0.0;
+
+    for (final node in nodes) {
+      sumX += node.position.dx;
+      sumY += node.position.dy;
+    }
+
+    final count = nodes.length.toDouble();
+    return Offset(sumX / count, sumY / count);
   }
 
   void _handleTap(Offset localPosition) {
