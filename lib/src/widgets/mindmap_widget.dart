@@ -93,6 +93,10 @@ class _MindMapWidgetState extends State<MindMapWidget>
   double scale = 1.0;
   Offset? lastFocalPoint;
   late AnimationController animationController;
+  Size _canvasSize = const Size(800, 600);
+  bool _autoCenterPending = true;
+  bool _hasUserPannedOrZoomed = false;
+  bool _sizeUpdateScheduled = false;
 
   @override
   void initState() {
@@ -105,7 +109,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
                 ForceDirectedLayout.calculate(
                   _visibleNodes,
                   _visibleEdges,
-                  const Size(800, 600),
+                  _canvasSize,
                 );
                 if (!widget.allowNodeOverlap) {
                   _resolveOverlaps();
@@ -151,15 +155,18 @@ class _MindMapWidgetState extends State<MindMapWidget>
         !_setsEqual(
           oldWidget.initiallyCollapsedNodeIds,
           widget.initiallyCollapsedNodeIds,
-        ) ||
-        oldWidget.allowNodeOverlap != widget.allowNodeOverlap;
+        );
 
     if (shouldReparse) {
+      _autoCenterPending = true;
       _parseData();
       return;
     }
 
     if (oldWidget.allowNodeOverlap != widget.allowNodeOverlap) {
+      if (!_hasUserPannedOrZoomed) {
+        _autoCenterPending = true;
+      }
       setState(_runLayout);
     }
   }
@@ -197,6 +204,11 @@ class _MindMapWidgetState extends State<MindMapWidget>
 
       _allNodes = parsedNodes;
       _allEdges = parsedEdges;
+
+      offset = Offset.zero;
+      scale = 1.0;
+      _hasUserPannedOrZoomed = false;
+      _autoCenterPending = true;
 
       _buildGraphStructure();
       _applyDefaultExpansion();
@@ -318,18 +330,17 @@ class _MindMapWidgetState extends State<MindMapWidget>
     if (_visibleNodes.isEmpty) return;
 
     if (widget.useTreeLayout) {
-      TreeLayout.calculate(_visibleNodes, _visibleEdges, const Size(800, 600));
+      TreeLayout.calculate(_visibleNodes, _visibleEdges, _canvasSize);
     } else {
-      ForceDirectedLayout.calculate(
-        _visibleNodes,
-        _visibleEdges,
-        const Size(800, 600),
-      );
+      ForceDirectedLayout.calculate(_visibleNodes, _visibleEdges, _canvasSize);
     }
 
     if (!widget.allowNodeOverlap) {
       _resolveOverlaps();
     }
+
+    _ensureNodeSizes();
+    _applyAutoCenterIfNeeded();
   }
 
   void _ensureNodeSizes() {
@@ -443,6 +454,32 @@ class _MindMapWidgetState extends State<MindMapWidget>
     }
   }
 
+  void _applyAutoCenterIfNeeded() {
+    if (!_autoCenterPending) {
+      return;
+    }
+
+    if (_hasUserPannedOrZoomed) {
+      _autoCenterPending = false;
+      return;
+    }
+
+    if (_canvasSize == Size.zero) {
+      return;
+    }
+
+    final bounds = _computeBounds(_visibleNodes);
+    if (bounds == null) {
+      return;
+    }
+
+    final contentCenter = bounds.center;
+    final viewCenter = Offset(_canvasSize.width / 2, _canvasSize.height / 2);
+
+    offset = viewCenter - contentCenter;
+    _autoCenterPending = false;
+  }
+
   Offset _computeCentroid(List<MindMapNode> nodes) {
     if (nodes.isEmpty) {
       return Offset.zero;
@@ -458,6 +495,36 @@ class _MindMapWidgetState extends State<MindMapWidget>
 
     final count = nodes.length.toDouble();
     return Offset(sumX / count, sumY / count);
+  }
+
+  Rect? _computeBounds(List<MindMapNode> nodes) {
+    if (nodes.isEmpty) {
+      return null;
+    }
+
+    double minX = double.infinity;
+    double minY = double.infinity;
+    double maxX = double.negativeInfinity;
+    double maxY = double.negativeInfinity;
+
+    for (final node in nodes) {
+      final size = node.size ?? const Size(100, 60);
+      final left = node.position.dx - size.width / 2;
+      final right = node.position.dx + size.width / 2;
+      final top = node.position.dy - size.height / 2;
+      final bottom = node.position.dy + size.height / 2;
+
+      if (left < minX) minX = left;
+      if (right > maxX) maxX = right;
+      if (top < minY) minY = top;
+      if (bottom > maxY) maxY = bottom;
+    }
+
+    if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
+      return null;
+    }
+
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
   void _handleTap(Offset localPosition) {
@@ -495,41 +562,73 @@ class _MindMapWidgetState extends State<MindMapWidget>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onScaleStart: (details) {
-        lastFocalPoint = details.focalPoint;
-      },
-      onScaleUpdate: (details) {
-        setState(() {
-          // Handle pan
-          if (lastFocalPoint != null) {
-            offset += details.focalPoint - lastFocalPoint!;
-          }
-          lastFocalPoint = details.focalPoint;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : _canvasSize.width;
+        final double height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : _canvasSize.height;
+        final newSize = Size(width, height);
 
-          // Handle zoom
-          scale = (scale * details.scale).clamp(0.5, 3.0);
-        });
-      },
-      onScaleEnd: (details) {
-        lastFocalPoint = null;
-      },
-      onTapUp: (details) {
-        _handleTap(details.localPosition);
-      },
-      child: Container(
-        color: widget.backgroundColor,
-        child: CustomPaint(
-          painter: MindMapPainter(
-            nodes: _visibleNodes,
-            edges: _visibleEdges,
-            offset: offset,
-            scale: scale,
-            childrenMap: _childrenMap,
+        if (newSize != _canvasSize && !_sizeUpdateScheduled) {
+          _sizeUpdateScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              _sizeUpdateScheduled = false;
+              return;
+            }
+
+            _sizeUpdateScheduled = false;
+            setState(() {
+              _canvasSize = newSize;
+              if (!_hasUserPannedOrZoomed) {
+                _autoCenterPending = true;
+              }
+              _runLayout();
+            });
+          });
+        }
+
+        return GestureDetector(
+          onScaleStart: (details) {
+            lastFocalPoint = details.focalPoint;
+            _hasUserPannedOrZoomed = true;
+          },
+          onScaleUpdate: (details) {
+            setState(() {
+              // Handle pan
+              if (lastFocalPoint != null) {
+                offset += details.focalPoint - lastFocalPoint!;
+              }
+              lastFocalPoint = details.focalPoint;
+
+              // Handle zoom
+              scale = (scale * details.scale).clamp(0.5, 3.0);
+            });
+          },
+          onScaleEnd: (details) {
+            lastFocalPoint = null;
+          },
+          onTapUp: (details) {
+            _handleTap(details.localPosition);
+          },
+          child: Container(
+            color: widget.backgroundColor,
+            child: CustomPaint(
+              painter: MindMapPainter(
+                nodes: _visibleNodes,
+                edges: _visibleEdges,
+                offset: offset,
+                scale: scale,
+                childrenMap: _childrenMap,
+              ),
+              size: Size.infinite,
+            ),
           ),
-          size: Size.infinite,
-        ),
-      ),
+        );
+      },
     );
   }
 }
