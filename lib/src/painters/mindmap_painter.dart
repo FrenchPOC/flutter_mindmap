@@ -22,6 +22,9 @@ class MindMapPainter extends CustomPainter {
   /// Mapping of node ids to their direct children ids.
   final Map<String, List<String>> childrenMap;
 
+  /// Animation progress for expansion/collapse (0.0 to 1.0)
+  final double expansionProgress;
+
   /// Maximum width for node labels
   static const double maxWidth = 250.0;
 
@@ -43,6 +46,7 @@ class MindMapPainter extends CustomPainter {
     required this.offset,
     required this.scale,
     required this.childrenMap,
+    this.expansionProgress = 1.0,
   }) {
     // Calculate sizes for all nodes
     _calculateNodeSizes();
@@ -55,10 +59,10 @@ class MindMapPainter extends CustomPainter {
         final textPainter = TextPainter(
           text: TextSpan(
             text: node.label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: Colors.grey.shade900,
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -88,11 +92,14 @@ class MindMapPainter extends CustomPainter {
     canvas.translate(offset.dx, offset.dy);
     canvas.scale(scale);
 
-    // Draw edges
+    // Draw edges with curved bezier paths (Google Notebook style)
     final edgePaint = Paint()
-      ..color = Colors.grey.shade400
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
+      ..color = Colors.grey.shade300.withValues(
+        alpha: expansionProgress,
+      )
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     for (var edge in edges) {
       final from = nodes.firstWhere((n) => n.id == edge.fromId);
@@ -122,10 +129,36 @@ class MindMapPainter extends CustomPainter {
         from.position,
       );
 
-      canvas.drawLine(startPoint, endPoint, edgePaint);
+      // Draw curved bezier line (horizontal emphasis for Google Notebook style)
+      final path = Path();
+      path.moveTo(startPoint.dx, startPoint.dy);
+
+      // Calculate control points for smooth horizontal curve
+      final horizontalDistance = (endPoint.dx - startPoint.dx).abs();
+      final controlPointOffset = horizontalDistance * 0.5;
+
+      final controlPoint1 = Offset(
+        startPoint.dx + controlPointOffset,
+        startPoint.dy,
+      );
+      final controlPoint2 = Offset(
+        endPoint.dx - controlPointOffset,
+        endPoint.dy,
+      );
+
+      path.cubicTo(
+        controlPoint1.dx,
+        controlPoint1.dy,
+        controlPoint2.dx,
+        controlPoint2.dy,
+        endPoint.dx,
+        endPoint.dy,
+      );
+
+      canvas.drawPath(path, edgePaint);
     }
 
-    // Draw nodes
+    // Draw nodes with pill shape (Google Notebook style)
     for (var node in nodes) {
       final nodeSize = node.size ?? const Size(100, 60);
       final rect = Rect.fromCenter(
@@ -134,39 +167,37 @@ class MindMapPainter extends CustomPainter {
         height: nodeSize.height,
       );
 
-      // Draw rounded rectangle with shadow
-      final shadowPath = RRect.fromRectAndRadius(
-        rect.translate(2, 2),
-        const Radius.circular(borderRadius),
-      );
-      canvas.drawRRect(
-        shadowPath,
-        Paint()..color = Colors.black.withValues(alpha: 0.2),
-      );
+      // Create pill shape with fully rounded ends
+      final pillRadius = Radius.circular(nodeSize.height / 2);
+      final rrect = RRect.fromRectAndRadius(rect, pillRadius);
 
-      // Draw rounded rectangle
-      final rrect = RRect.fromRectAndRadius(
-        rect,
-        const Radius.circular(borderRadius),
+      // Softer, lighter colors for Google Notebook style
+      final nodeColor = _lightenColor(node.color, 0.3);
+
+      // Apply expansion animation: fade-in effect (0.0 to 1.0)
+      final animOpacity = expansionProgress;      canvas.drawRRect(
+        rrect,
+        Paint()..color = nodeColor.withValues(alpha: animOpacity),
       );
 
-      canvas.drawRRect(rrect, Paint()..color = node.color);
-
-      // Draw border
+      // Subtle border with animation
       final borderPaint = Paint()
-        ..color = Colors.white
-        ..strokeWidth = 2
+        ..color = _darkenColor(node.color, 0.1).withValues(alpha: animOpacity)
+        ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke;
       canvas.drawRRect(rrect, borderPaint);
 
-      // Draw label
+      // Draw label with darker text for better readability on light backgrounds
+      // Use dark text by default since lightened colors are light
+      final textColor = Colors.grey.shade900;
+
       final textPainter = TextPainter(
         text: TextSpan(
           text: node.label,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor.withValues(alpha: animOpacity),
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             height: 1.3,
           ),
         ),
@@ -190,6 +221,20 @@ class MindMapPainter extends CustomPainter {
     }
 
     canvas.restore();
+  }
+
+  /// Lightens a color by the given factor (0.0 - 1.0)
+  Color _lightenColor(Color color, double factor) {
+    final hsl = HSLColor.fromColor(color);
+    final lightness = (hsl.lightness + factor).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor();
+  }
+
+  /// Darkens a color by the given factor (0.0 - 1.0)
+  Color _darkenColor(Color color, double factor) {
+    final hsl = HSLColor.fromColor(color);
+    final lightness = (hsl.lightness - factor).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor();
   }
 
   /// Calculates the intersection point between a line and a rectangle
@@ -222,24 +267,34 @@ class MindMapPainter extends CustomPainter {
   }
 
   void _paintExpansionIndicator(Canvas canvas, Rect rect, MindMapNode node) {
+    // Position indicator on the right edge for horizontal layout
     final indicatorCenter = Offset(
-      rect.right - indicatorPaddingFromEdge,
-      rect.bottom - indicatorPaddingFromEdge,
+      rect.right + indicatorPaddingFromEdge + indicatorRadius,
+      rect.center.dy,
     );
 
+    // Softer background matching Google Notebook style
+    final backgroundColor = _lightenColor(node.color, 0.4);
     final backgroundPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.9)
+      ..color = backgroundColor
       ..style = PaintingStyle.fill;
     canvas.drawCircle(indicatorCenter, indicatorRadius, backgroundPaint);
 
-    final lineColor = node.color.computeLuminance() > 0.5
-        ? Colors.black87
-        : Colors.black54;
+    // Border for the indicator
+    final borderPaint = Paint()
+      ..color = _darkenColor(node.color, 0.2)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(indicatorCenter, indicatorRadius, borderPaint);
+
+    // Icon color
+    final iconColor = _darkenColor(node.color, 0.3);
     final linePaint = Paint()
-      ..color = lineColor
+      ..color = iconColor
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
 
+    // Draw + or - icon
     canvas.drawLine(
       Offset(indicatorCenter.dx - indicatorRadius * 0.5, indicatorCenter.dy),
       Offset(indicatorCenter.dx + indicatorRadius * 0.5, indicatorCenter.dy),

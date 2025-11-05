@@ -27,68 +27,175 @@ class MindMapDemo extends StatefulWidget {
 }
 
 class _MindMapDemoState extends State<MindMapDemo> {
-  bool useTreeLayout = false;
-  bool allowNodeOverlap = true;
+  bool useTreeLayout = true; // Default to tree layout for horizontal display
 
-  // Example JSON data format 1: Explicit nodes and edges
-  final String exampleData1 = jsonEncode({
-    "nodes": [
-      {"id": "1", "label": "Machine Learning Overview", "color": "#FF6B6B"},
-      {
-        "id": "2",
-        "label":
-            "Supervised Learning: Training models with labeled data to predict outcomes",
-        "color": "#4ECDC4",
-      },
-      {
-        "id": "3",
-        "label":
-            "Unsupervised Learning: Finding patterns in unlabeled data through clustering and dimensionality reduction",
-        "color": "#45B7D1",
-      },
-      {"id": "4", "label": "Reinforcement Learning", "color": "#96CEB4"},
-      {
-        "id": "5",
-        "label":
-            "Deep neural networks with multiple layers that can learn hierarchical representations of data",
-        "color": "#FFEAA7",
-      },
-    ],
-    "edges": [
-      {"from": "1", "to": "2"},
-      {"from": "1", "to": "3"},
-      {"from": "1", "to": "4"},
-      {"from": "2", "to": "5"},
-    ],
-  });
-
-  // Example JSON data format 2: Nested structure with children
-  final String exampleData2 = jsonEncode([
+  // Google Notebook-style example: Infrared Technology mind map
+  final String infraredTechData = jsonEncode([
     {
-      "id": "1",
-      "label": "Project Planning",
-      "color": "#FF6B6B",
+      "id": "root",
+      "label":
+          "Infrared Thermography for Condition Monitoring & Fault Detection",
+      "color": "#7B68EE",
       "children": [
         {
-          "id": "2",
-          "label":
-              "Requirements: Gather stakeholder needs, define scope, create user stories, and establish acceptance criteria",
-          "color": "#4ECDC4",
+          "id": "basics",
+          "label": "Infrared Technology Basics",
+          "color": "#6495ED",
           "children": [
             {
-              "id": "5",
-              "label":
-                  "Functional and non-functional requirements documentation",
-              "color": "#FFEAA7",
+              "id": "emissivity",
+              "label": "Emissivity & Surface Properties",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "wavelengths",
+              "label": "Thermal Wavelength Ranges",
+              "color": "#87CEEB",
             },
           ],
         },
         {
-          "id": "3",
-          "label": "Design Phase: Architecture, UI/UX, and database schema",
-          "color": "#45B7D1",
+          "id": "measurements",
+          "label": "Crucial Measurement/Imaging Factors",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "distance",
+              "label": "Distance & Resolution",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "ambient",
+              "label": "Ambient Conditions",
+              "color": "#87CEEB",
+            },
+          ],
         },
-        {"id": "4", "label": "Implementation", "color": "#96CEB4"},
+        {
+          "id": "monitoring",
+          "label": "Applications in Condition Monitoring (CM)",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "electrical",
+              "label": "Electrical Systems",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "mechanical",
+              "label": "Mechanical Equipment",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "buildings",
+              "label": "Building Inspections",
+              "color": "#87CEEB",
+            },
+          ],
+        },
+        {
+          "id": "fault",
+          "label": "Advanced Fault Detection in Power Systems",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "hotspots",
+              "label": "Hotspot Detection",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "predictive",
+              "label": "Predictive Maintenance",
+              "color": "#87CEEB",
+            },
+          ],
+        },
+        {
+          "id": "detection",
+          "label": "Infrared Detection Methods",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "passive",
+              "label": "Passive Thermography",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "active",
+              "label": "Active Thermography",
+              "color": "#87CEEB",
+            },
+          ],
+        },
+        {
+          "id": "data",
+          "label": "Thermal Imaging Data Handling",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "processing",
+              "label": "Image Processing",
+              "color": "#87CEEB",
+            },
+            {"id": "analysis", "label": "Data Analysis", "color": "#87CEEB"},
+          ],
+        },
+        {
+          "id": "training",
+          "label": "Training & Prioritization",
+          "color": "#6495ED",
+          "children": [
+            {
+              "id": "certification",
+              "label": "Operator Certification",
+              "color": "#87CEEB",
+            },
+            {
+              "id": "standards",
+              "label": "Industry Standards",
+              "color": "#87CEEB",
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+
+  // Simpler example for comparison
+  final String simpleData = jsonEncode([
+    {
+      "id": "1",
+      "label": "Product Development",
+      "color": "#FF6B6B",
+      "children": [
+        {
+          "id": "2",
+          "label": "Research & Discovery",
+          "color": "#4ECDC4",
+          "children": [
+            {"id": "5", "label": "Market Analysis", "color": "#95E1D3"},
+            {"id": "6", "label": "User Research", "color": "#95E1D3"},
+          ],
+        },
+        {
+          "id": "3",
+          "label": "Design & Prototyping",
+          "color": "#45B7D1",
+          "children": [
+            {"id": "7", "label": "UI/UX Design", "color": "#A8E6CF"},
+            {"id": "8", "label": "Wireframes", "color": "#A8E6CF"},
+          ],
+        },
+        {
+          "id": "4",
+          "label": "Development",
+          "color": "#96CEB4",
+          "children": [
+            {"id": "9", "label": "Frontend", "color": "#C7CEEA"},
+            {"id": "10", "label": "Backend", "color": "#C7CEEA"},
+            {"id": "11", "label": "Testing", "color": "#C7CEEA"},
+          ],
+        },
       ],
     },
   ]);
@@ -98,18 +205,15 @@ class _MindMapDemoState extends State<MindMapDemo> {
   @override
   void initState() {
     super.initState();
-    currentData = exampleData1;
+    currentData = infraredTechData; // Start with the infrared tech example
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool useCollapsedDefaults = currentData == exampleData2;
-    final bool expandAllByDefault = !useCollapsedDefaults;
-    final Set<String>? initialExpansions = useCollapsedDefaults ? {'1'} : null;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flutter MindMap Demo'),
+        title: const Text('Flutter MindMap Demo - Google Notebook Style'),
+        backgroundColor: Colors.deepPurple,
         actions: [
           Switch(
             value: useTreeLayout,
@@ -121,44 +225,58 @@ class _MindMapDemoState extends State<MindMapDemo> {
           ),
           const Padding(
             padding: EdgeInsets.only(right: 16.0),
-            child: Center(child: Text('Tree Layout')),
-          ),
-          Switch(
-            value: allowNodeOverlap,
-            onChanged: (value) {
-              setState(() {
-                allowNodeOverlap = value;
-              });
-            },
-          ),
-          const Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Center(child: Text('Allow Overlap')),
+            child: Center(
+              child: Text('Tree Layout', style: TextStyle(color: Colors.white)),
+            ),
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            color: Colors.grey.shade100,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      currentData = exampleData1;
-                    });
-                  },
-                  child: const Text('Machine Learning Map'),
+                const Text(
+                  'Interactive Mind Map Examples',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      currentData = exampleData2;
-                    });
-                  },
-                  child: const Text('Project Planning Map'),
+                const SizedBox(height: 8),
+                const Text(
+                  'Use mouse wheel to zoom, drag to pan, click nodes to expand/collapse',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          currentData = infraredTechData;
+                        });
+                      },
+                      icon: const Icon(Icons.science),
+                      label: const Text('Infrared Technology'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          currentData = simpleData;
+                        });
+                      },
+                      icon: const Icon(Icons.rocket_launch),
+                      label: const Text('Product Development'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -168,9 +286,8 @@ class _MindMapDemoState extends State<MindMapDemo> {
               key: ValueKey(currentData + useTreeLayout.toString()),
               jsonData: currentData,
               useTreeLayout: useTreeLayout,
-              allowNodeOverlap: allowNodeOverlap,
-              expandAllNodesByDefault: expandAllByDefault,
-              initiallyExpandedNodeIds: initialExpansions,
+              backgroundColor: const Color(0xFFFAFAFA),
+              expandAllNodesByDefault: false,
             ),
           ),
         ],

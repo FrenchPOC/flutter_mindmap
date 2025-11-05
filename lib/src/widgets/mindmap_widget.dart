@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/mindmap_node.dart';
 import '../models/mindmap_edge.dart';
@@ -81,7 +82,7 @@ class MindMapWidget extends StatefulWidget {
 }
 
 class _MindMapWidgetState extends State<MindMapWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   List<MindMapNode> _allNodes = [];
   List<MindMapEdge> _allEdges = [];
   List<MindMapNode> _visibleNodes = [];
@@ -93,10 +94,12 @@ class _MindMapWidgetState extends State<MindMapWidget>
   double scale = 1.0;
   Offset? lastFocalPoint;
   late AnimationController animationController;
+  late AnimationController expansionController;
   Size _canvasSize = const Size(800, 600);
   bool _autoCenterPending = true;
   bool _hasUserPannedOrZoomed = false;
   bool _sizeUpdateScheduled = false;
+  double _expansionProgress = 1.0;
 
   @override
   void initState() {
@@ -117,6 +120,19 @@ class _MindMapWidgetState extends State<MindMapWidget>
               });
             }
           });
+
+    // Expansion/collapse animation controller
+    expansionController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 800),
+        )..addListener(() {
+          if (mounted) {
+            setState(() {
+              _expansionProgress = expansionController.value;
+            });
+          }
+        });
 
     if (!widget.useTreeLayout) {
       animationController.repeat();
@@ -174,6 +190,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
   @override
   void dispose() {
     animationController.dispose();
+    expansionController.dispose();
     super.dispose();
   }
 
@@ -353,10 +370,10 @@ class _MindMapWidgetState extends State<MindMapWidget>
     final textPainter = TextPainter(
       text: TextSpan(
         text: node.label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: Colors.grey.shade900,
           fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -459,11 +476,6 @@ class _MindMapWidgetState extends State<MindMapWidget>
       return;
     }
 
-    if (_hasUserPannedOrZoomed) {
-      _autoCenterPending = false;
-      return;
-    }
-
     if (_canvasSize == Size.zero) {
       return;
     }
@@ -476,7 +488,11 @@ class _MindMapWidgetState extends State<MindMapWidget>
     final contentCenter = bounds.center;
     final viewCenter = Offset(_canvasSize.width / 2, _canvasSize.height / 2);
 
-    offset = viewCenter - contentCenter;
+    // Calculate the new offset to center the content
+    final newOffset = viewCenter - contentCenter;
+
+    // Apply the new offset
+    offset = newOffset;
     _autoCenterPending = false;
   }
 
@@ -544,10 +560,25 @@ class _MindMapWidgetState extends State<MindMapWidget>
           return;
         }
 
+        // Trigger expansion animation
+        expansionController.forward(from: 0.0);
+
         setState(() {
           node.isExpanded = !node.isExpanded;
           _rebuildVisibility();
           _runLayout();
+          // Re-center the viewport after expansion/collapse
+          // This ensures the expanded content is visible
+          _autoCenterPending = true;
+
+          // Use post-frame callback to ensure layout is complete
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _applyAutoCenterIfNeeded();
+              });
+            }
+          });
         });
         return;
       }
@@ -591,40 +622,84 @@ class _MindMapWidgetState extends State<MindMapWidget>
           });
         }
 
-        return GestureDetector(
-          onScaleStart: (details) {
-            lastFocalPoint = details.focalPoint;
-            _hasUserPannedOrZoomed = true;
-          },
-          onScaleUpdate: (details) {
-            setState(() {
-              // Handle pan
-              if (lastFocalPoint != null) {
-                offset += details.focalPoint - lastFocalPoint!;
-              }
-              lastFocalPoint = details.focalPoint;
+        return Listener(
+          // Mouse wheel zoom support
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              final scrollDelta = event.scrollDelta.dy;
+              final zoomFactor = scrollDelta > 0 ? 0.9 : 1.1;
 
-              // Handle zoom
-              scale = (scale * details.scale).clamp(0.5, 3.0);
-            });
+              setState(() {
+                final oldScale = scale;
+                scale = (scale * zoomFactor).clamp(0.3, 5.0);
+
+                // Zoom towards cursor position
+                final pointerOffset = event.localPosition;
+                final scaleDelta = scale - oldScale;
+                offset = Offset(
+                  offset.dx -
+                      (pointerOffset.dx - offset.dx) * scaleDelta / oldScale,
+                  offset.dy -
+                      (pointerOffset.dy - offset.dy) * scaleDelta / oldScale,
+                );
+
+                _hasUserPannedOrZoomed = true;
+              });
+            }
           },
-          onScaleEnd: (details) {
-            lastFocalPoint = null;
-          },
-          onTapUp: (details) {
-            _handleTap(details.localPosition);
-          },
-          child: Container(
-            color: widget.backgroundColor,
-            child: CustomPaint(
-              painter: MindMapPainter(
-                nodes: _visibleNodes,
-                edges: _visibleEdges,
-                offset: offset,
-                scale: scale,
-                childrenMap: _childrenMap,
+          child: GestureDetector(
+            onScaleStart: (details) {
+              lastFocalPoint = details.focalPoint;
+              _hasUserPannedOrZoomed = true;
+            },
+            onScaleUpdate: (details) {
+              setState(() {
+                // Handle zoom with pinch gestures
+                if (details.scale != 1.0) {
+                  final oldScale = scale;
+                  scale = (scale * details.scale).clamp(0.3, 5.0);
+
+                  // Zoom towards focal point
+                  final focalPointOffset = details.focalPoint;
+                  final scaleDelta = scale - oldScale;
+                  offset = Offset(
+                    offset.dx -
+                        (focalPointOffset.dx - offset.dx) *
+                            scaleDelta /
+                            oldScale,
+                    offset.dy -
+                        (focalPointOffset.dy - offset.dy) *
+                            scaleDelta /
+                            oldScale,
+                  );
+                }
+
+                // Handle pan
+                if (lastFocalPoint != null && details.scale == 1.0) {
+                  offset += details.focalPoint - lastFocalPoint!;
+                }
+                lastFocalPoint = details.focalPoint;
+              });
+            },
+            onScaleEnd: (details) {
+              lastFocalPoint = null;
+            },
+            onTapUp: (details) {
+              _handleTap(details.localPosition);
+            },
+            child: Container(
+              color: widget.backgroundColor,
+              child: CustomPaint(
+                painter: MindMapPainter(
+                  nodes: _visibleNodes,
+                  edges: _visibleEdges,
+                  offset: offset,
+                  scale: scale,
+                  childrenMap: _childrenMap,
+                  expansionProgress: _expansionProgress,
+                ),
+                size: Size.infinite,
               ),
-              size: Size.infinite,
             ),
           ),
         );
