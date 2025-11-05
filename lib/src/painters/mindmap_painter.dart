@@ -94,9 +94,7 @@ class MindMapPainter extends CustomPainter {
 
     // Draw edges with curved bezier paths (Google Notebook style)
     final edgePaint = Paint()
-      ..color = Colors.grey.shade300.withValues(
-        alpha: expansionProgress,
-      )
+      ..color = Colors.grey.shade300.withValues(alpha: expansionProgress)
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -175,7 +173,8 @@ class MindMapPainter extends CustomPainter {
       final nodeColor = _lightenColor(node.color, 0.3);
 
       // Apply expansion animation: fade-in effect (0.0 to 1.0)
-      final animOpacity = expansionProgress;      canvas.drawRRect(
+      final animOpacity = expansionProgress;
+      canvas.drawRRect(
         rrect,
         Paint()..color = nodeColor.withValues(alpha: animOpacity),
       );
