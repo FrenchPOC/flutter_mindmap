@@ -36,6 +36,9 @@ class MindMapPainter extends CustomPainter {
   /// Only edges in this set will fade in; others stay at full opacity
   final Set<String> newlyAnimatedEdgeIds;
 
+  /// Whether we're currently expanding (true) or collapsing (false)
+  final bool isExpanding;
+
   /// Maximum width for node labels
   static const double maxWidth = 250.0;
 
@@ -61,6 +64,7 @@ class MindMapPainter extends CustomPainter {
     this.expansionProgress = 1.0,
     this.edgeOpacity = 1.0,
     this.newlyAnimatedEdgeIds = const {},
+    this.isExpanding = true,
   }) {
     // Calculate sizes for all nodes
     _calculateNodeSizes();
@@ -183,8 +187,9 @@ class MindMapPainter extends CustomPainter {
 
       // Animate node position from parent position to final position
       final parentPos = parentPositions[node.id] ?? node.position;
+      final animationProgress = isExpanding ? expansionProgress : (1.0 - expansionProgress);
       final animatedPosition =
-          Offset.lerp(parentPos, node.position, expansionProgress) ??
+          Offset.lerp(parentPos, node.position, animationProgress) ??
           node.position;
 
       final rect = Rect.fromCenter(
