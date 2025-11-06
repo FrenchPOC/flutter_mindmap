@@ -187,7 +187,9 @@ class MindMapPainter extends CustomPainter {
 
       // Animate node position from parent position to final position
       final parentPos = parentPositions[node.id] ?? node.position;
-      final animationProgress = isExpanding ? expansionProgress : (1.0 - expansionProgress);
+      final animationProgress = isExpanding
+          ? expansionProgress
+          : (1.0 - expansionProgress);
       final animatedPosition =
           Offset.lerp(parentPos, node.position, animationProgress) ??
           node.position;

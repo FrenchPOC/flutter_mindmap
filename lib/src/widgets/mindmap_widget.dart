@@ -107,7 +107,8 @@ class _MindMapWidgetState extends State<MindMapWidget>
   bool _sizeUpdateScheduled = false;
   double _expansionProgress = 1.0;
   double _edgeOpacity = 1.0; // Track edge fade-in animation
-  bool _isExpanding = true; // Track if we're expanding (true) or collapsing (false)
+  bool _isExpanding =
+      true; // Track if we're expanding (true) or collapsing (false)
 
   @override
   void initState() {
@@ -132,45 +133,47 @@ class _MindMapWidgetState extends State<MindMapWidget>
     // Expansion/collapse animation controller
     expansionController =
         AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 800),
-        )..addListener(() {
-          if (mounted) {
-            setState(() {
-              _expansionProgress = expansionController.value;
-
-              // Edges fade in/out after nodes are 70% animated
-              // This creates a staggered effect for both expand and collapse
-              const double fadeStartProgress = 0.7;
-              if (_expansionProgress < fadeStartProgress) {
-                // For expanding: edges hidden (0.0)
-                // For collapsing: edges visible (1.0)
-                _edgeOpacity = _isExpanding ? 0.0 : 1.0;
-              } else {
-                // Fade over the remaining 30% of animation
-                final fadeFactor =
-                    (_expansionProgress - fadeStartProgress) /
-                    (1.0 - fadeStartProgress);
-                if (_isExpanding) {
-                  // Fade in: 0.0 → 1.0
-                  _edgeOpacity = fadeFactor;
-                } else {
-                  // Fade out: 1.0 → 0.0
-                  _edgeOpacity = 1.0 - fadeFactor;
-                }
-              }
-            });
-          }
-        })..addStatusListener((status) {
-          // After collapse animation completes, remove disappearing nodes
-          if (status == AnimationStatus.completed && !_isExpanding) {
+            vsync: this,
+            duration: const Duration(milliseconds: 800),
+          )
+          ..addListener(() {
             if (mounted) {
               setState(() {
-                _rebuildVisibility();
+                _expansionProgress = expansionController.value;
+
+                // Edges fade in/out after nodes are 70% animated
+                // This creates a staggered effect for both expand and collapse
+                const double fadeStartProgress = 0.7;
+                if (_expansionProgress < fadeStartProgress) {
+                  // For expanding: edges hidden (0.0)
+                  // For collapsing: edges visible (1.0)
+                  _edgeOpacity = _isExpanding ? 0.0 : 1.0;
+                } else {
+                  // Fade over the remaining 30% of animation
+                  final fadeFactor =
+                      (_expansionProgress - fadeStartProgress) /
+                      (1.0 - fadeStartProgress);
+                  if (_isExpanding) {
+                    // Fade in: 0.0 → 1.0
+                    _edgeOpacity = fadeFactor;
+                  } else {
+                    // Fade out: 1.0 → 0.0
+                    _edgeOpacity = 1.0 - fadeFactor;
+                  }
+                }
               });
             }
-          }
-        });
+          })
+          ..addStatusListener((status) {
+            // After collapse animation completes, remove disappearing nodes
+            if (status == AnimationStatus.completed && !_isExpanding) {
+              if (mounted) {
+                setState(() {
+                  _rebuildVisibility();
+                });
+              }
+            }
+          });
 
     // Camera animation controller for smooth viewport transitions
     cameraController =
@@ -632,8 +635,10 @@ class _MindMapWidgetState extends State<MindMapWidget>
             // We're collapsing - keep old visibility for now
             _rebuildVisibility();
             final nowVisibleIds = _visibleNodes.map((n) => n.id).toSet();
-            _newlyAnimatedNodeIds = previouslyVisibleIds.difference(nowVisibleIds);
-            
+            _newlyAnimatedNodeIds = previouslyVisibleIds.difference(
+              nowVisibleIds,
+            );
+
             // Restore all previously visible nodes so they can animate out
             final allVisibleIds = previouslyVisibleIds.union(nowVisibleIds);
             _visibleNodes = [
@@ -651,7 +656,9 @@ class _MindMapWidgetState extends State<MindMapWidget>
             // We're expanding - normal visibility rebuild
             _rebuildVisibility();
             final nowVisibleIds = _visibleNodes.map((n) => n.id).toSet();
-            _newlyAnimatedNodeIds = nowVisibleIds.difference(previouslyVisibleIds);
+            _newlyAnimatedNodeIds = nowVisibleIds.difference(
+              previouslyVisibleIds,
+            );
           }
 
           // Calculate which edges are newly deployed
