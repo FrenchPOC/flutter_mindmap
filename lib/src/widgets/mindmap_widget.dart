@@ -137,7 +137,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
           if (mounted) {
             setState(() {
               _expansionProgress = expansionController.value;
-              
+
               // Edges fade in after nodes are 70% expanded
               // This creates a staggered effect
               const double fadeStartProgress = 0.7;
@@ -145,7 +145,9 @@ class _MindMapWidgetState extends State<MindMapWidget>
                 _edgeOpacity = 0.0;
               } else {
                 // Fade from 0 to 1 over the remaining 30% of animation
-                _edgeOpacity = (_expansionProgress - fadeStartProgress) / (1.0 - fadeStartProgress);
+                _edgeOpacity =
+                    (_expansionProgress - fadeStartProgress) /
+                    (1.0 - fadeStartProgress);
               }
             });
           }
