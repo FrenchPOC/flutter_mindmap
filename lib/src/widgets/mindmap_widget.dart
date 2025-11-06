@@ -65,6 +65,9 @@ class MindMapWidget extends StatefulWidget {
   /// Duration for force-directed animation
   final Duration animationDuration;
 
+  /// Color of the edge lines connecting nodes
+  final Color edgeColor;
+
   const MindMapWidget({
     super.key,
     required this.jsonData,
@@ -75,6 +78,7 @@ class MindMapWidget extends StatefulWidget {
     this.initiallyExpandedNodeIds,
     this.initiallyCollapsedNodeIds,
     this.animationDuration = const Duration(seconds: 2),
+    this.edgeColor = const Color(0xFFBDBDBD),
   });
 
   @override
@@ -843,6 +847,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
                   edgeOpacity: _edgeOpacity,
                   newlyAnimatedEdgeIds: _newlyAnimatedEdgeIds,
                   isExpanding: _isExpanding,
+                  edgeColor: widget.edgeColor,
                 ),
                 size: Size.infinite,
               ),

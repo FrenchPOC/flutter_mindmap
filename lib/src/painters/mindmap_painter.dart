@@ -39,6 +39,9 @@ class MindMapPainter extends CustomPainter {
   /// Whether we're currently expanding (true) or collapsing (false)
   final bool isExpanding;
 
+  /// Color of the edge lines
+  final Color edgeColor;
+
   /// Maximum width for node labels
   static const double maxWidth = 250.0;
 
@@ -65,6 +68,7 @@ class MindMapPainter extends CustomPainter {
     this.edgeOpacity = 1.0,
     this.newlyAnimatedEdgeIds = const {},
     this.isExpanding = true,
+    this.edgeColor = const Color(0xFFBDBDBD),
   }) {
     // Calculate sizes for all nodes
     _calculateNodeSizes();
@@ -123,7 +127,7 @@ class MindMapPainter extends CustomPainter {
       final edgeAlpha = isNewlyAnimated ? edgeOpacity : 1.0;
 
       final edgePaint = Paint()
-        ..color = Colors.grey.shade300.withValues(alpha: edgeAlpha)
+        ..color = edgeColor.withValues(alpha: edgeAlpha)
         ..strokeWidth = 2.5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round;
