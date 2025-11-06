@@ -28,6 +28,14 @@ class MindMapPainter extends CustomPainter {
   /// Animation progress for expansion/collapse (0.0 to 1.0)
   final double expansionProgress;
 
+  /// Edge fade-in opacity (0.0 to 1.0) - appears after node animation
+  final double edgeOpacity;
+
+  /// Set of edge IDs that are newly animated
+  /// Format: "fromId->toId"
+  /// Only edges in this set will fade in; others stay at full opacity
+  final Set<String> newlyAnimatedEdgeIds;
+
   /// Maximum width for node labels
   static const double maxWidth = 250.0;
 
@@ -51,6 +59,8 @@ class MindMapPainter extends CustomPainter {
     required this.scale,
     required this.childrenMap,
     this.expansionProgress = 1.0,
+    this.edgeOpacity = 1.0,
+    this.newlyAnimatedEdgeIds = const {},
   }) {
     // Calculate sizes for all nodes
     _calculateNodeSizes();
@@ -97,15 +107,22 @@ class MindMapPainter extends CustomPainter {
     canvas.scale(scale);
 
     // Draw edges with curved bezier paths (Google Notebook style)
-    final edgePaint = Paint()
-      ..color = Colors.grey.shade300
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
     for (var edge in edges) {
       final from = nodes.firstWhere((n) => n.id == edge.fromId);
       final to = nodes.firstWhere((n) => n.id == edge.toId);
+
+      // Determine opacity for this edge
+      // Newly animated edges use edgeOpacity (fade in effect)
+      // Already visible edges stay at full opacity (1.0)
+      final edgeId = '${edge.fromId}->${edge.toId}';
+      final isNewlyAnimated = newlyAnimatedEdgeIds.contains(edgeId);
+      final edgeAlpha = isNewlyAnimated ? edgeOpacity : 1.0;
+
+      final edgePaint = Paint()
+        ..color = Colors.grey.shade300.withValues(alpha: edgeAlpha)
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
 
       // Calculate edge start and end points at the edge of rectangles
       final fromRect = Rect.fromCenter(

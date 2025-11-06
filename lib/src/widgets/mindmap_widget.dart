@@ -92,6 +92,8 @@ class _MindMapWidgetState extends State<MindMapWidget>
   List<String> _rootIds = [];
   Set<String> _newlyAnimatedNodeIds =
       {}; // Track nodes that just became visible
+  Set<String> _newlyAnimatedEdgeIds =
+      {}; // Track edges connecting to newly animated nodes
   Offset offset = Offset.zero;
   double scale = 1.0;
   Offset? lastFocalPoint;
@@ -104,6 +106,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
   bool _hasUserPannedOrZoomed = false;
   bool _sizeUpdateScheduled = false;
   double _expansionProgress = 1.0;
+  double _edgeOpacity = 1.0; // Track edge fade-in animation
 
   @override
   void initState() {
@@ -134,6 +137,16 @@ class _MindMapWidgetState extends State<MindMapWidget>
           if (mounted) {
             setState(() {
               _expansionProgress = expansionController.value;
+              
+              // Edges fade in after nodes are 70% expanded
+              // This creates a staggered effect
+              const double fadeStartProgress = 0.7;
+              if (_expansionProgress < fadeStartProgress) {
+                _edgeOpacity = 0.0;
+              } else {
+                // Fade from 0 to 1 over the remaining 30% of animation
+                _edgeOpacity = (_expansionProgress - fadeStartProgress) / (1.0 - fadeStartProgress);
+              }
             });
           }
         });
@@ -606,6 +619,9 @@ class _MindMapWidgetState extends State<MindMapWidget>
             );
           }
 
+          // Calculate which edges are newly deployed
+          _newlyAnimatedEdgeIds = _calculateNewlyAnimatedEdges();
+
           _runLayout();
           // Re-center the viewport after expansion/collapse
           // This ensures the expanded content is visible
@@ -648,6 +664,26 @@ class _MindMapWidgetState extends State<MindMapWidget>
     }
 
     return parentMap;
+  }
+
+  /// Generates a unique identifier for an edge
+  /// Format: "fromId->toId"
+  String _getEdgeId(MindMapEdge edge) => '${edge.fromId}->${edge.toId}';
+
+  /// Calculates which edges are newly animated
+  /// An edge is new if at least one of its endpoints is newly animated
+  Set<String> _calculateNewlyAnimatedEdges() {
+    final newEdges = <String>{};
+
+    for (final edge in _visibleEdges) {
+      // Edge is new if either endpoint is newly animated
+      if (_newlyAnimatedNodeIds.contains(edge.fromId) ||
+          _newlyAnimatedNodeIds.contains(edge.toId)) {
+        newEdges.add(_getEdgeId(edge));
+      }
+    }
+
+    return newEdges;
   }
 
   @override
@@ -757,6 +793,8 @@ class _MindMapWidgetState extends State<MindMapWidget>
                   childrenMap: _childrenMap,
                   parentPositions: _calculateParentPositions(),
                   expansionProgress: _expansionProgress,
+                  edgeOpacity: _edgeOpacity,
+                  newlyAnimatedEdgeIds: _newlyAnimatedEdgeIds,
                 ),
                 size: Size.infinite,
               ),
