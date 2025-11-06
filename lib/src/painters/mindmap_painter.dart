@@ -163,11 +163,13 @@ class MindMapPainter extends CustomPainter {
     // Draw nodes with pill shape (Google Notebook style)
     for (var node in nodes) {
       final nodeSize = node.size ?? const Size(100, 60);
-      
+
       // Animate node position from parent position to final position
       final parentPos = parentPositions[node.id] ?? node.position;
-      final animatedPosition = Offset.lerp(parentPos, node.position, expansionProgress) ?? node.position;
-      
+      final animatedPosition =
+          Offset.lerp(parentPos, node.position, expansionProgress) ??
+          node.position;
+
       final rect = Rect.fromCenter(
         center: animatedPosition,
         width: nodeSize.width,
@@ -182,10 +184,7 @@ class MindMapPainter extends CustomPainter {
       final nodeColor = _lightenColor(node.color, 0.3);
 
       // Full opacity - position animation instead of fade
-      canvas.drawRRect(
-        rrect,
-        Paint()..color = nodeColor,
-      );
+      canvas.drawRRect(rrect, Paint()..color = nodeColor);
 
       // Subtle border
       final borderPaint = Paint()
