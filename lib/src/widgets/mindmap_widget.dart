@@ -90,11 +90,14 @@ class _MindMapWidgetState extends State<MindMapWidget>
   Map<String, MindMapNode> _nodeLookup = {};
   Map<String, List<String>> _childrenMap = {};
   List<String> _rootIds = [];
+  Set<String> _newlyAnimatedNodeIds = {}; // Track nodes that just became visible
   Offset offset = Offset.zero;
   double scale = 1.0;
   Offset? lastFocalPoint;
   late AnimationController animationController;
   late AnimationController expansionController;
+  late AnimationController cameraController; // For smooth camera transitions
+  Offset _targetOffset = Offset.zero; // Target camera offset
   Size _canvasSize = const Size(800, 600);
   bool _autoCenterPending = true;
   bool _hasUserPannedOrZoomed = false;
@@ -130,6 +133,20 @@ class _MindMapWidgetState extends State<MindMapWidget>
           if (mounted) {
             setState(() {
               _expansionProgress = expansionController.value;
+            });
+          }
+        });
+
+    // Camera animation controller for smooth viewport transitions
+    cameraController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 600),
+        )..addListener(() {
+          if (mounted) {
+            setState(() {
+              // Smoothly interpolate offset during camera animation
+              offset = Offset.lerp(offset, _targetOffset, cameraController.value) ?? offset;
             });
           }
         });
@@ -191,6 +208,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
   void dispose() {
     animationController.dispose();
     expansionController.dispose();
+    cameraController.dispose();
     super.dispose();
   }
 
@@ -489,10 +507,11 @@ class _MindMapWidgetState extends State<MindMapWidget>
     final viewCenter = Offset(_canvasSize.width / 2, _canvasSize.height / 2);
 
     // Calculate the new offset to center the content
-    final newOffset = viewCenter - contentCenter;
+    _targetOffset = viewCenter - contentCenter;
 
-    // Apply the new offset
-    offset = newOffset;
+    // Animate camera to the target offset smoothly
+    cameraController.forward(from: 0.0);
+    
     _autoCenterPending = false;
   }
 
@@ -560,12 +579,26 @@ class _MindMapWidgetState extends State<MindMapWidget>
           return;
         }
 
+        // Capture current visible nodes before expansion
+        final previouslyVisibleIds = _visibleNodes.map((n) => n.id).toSet();
+
         // Trigger expansion animation
         expansionController.forward(from: 0.0);
 
         setState(() {
           node.isExpanded = !node.isExpanded;
           _rebuildVisibility();
+          
+          // Track which nodes became newly visible
+          final nowVisibleIds = _visibleNodes.map((n) => n.id).toSet();
+          if (node.isExpanded) {
+            // Expanding: new nodes are those not previously visible
+            _newlyAnimatedNodeIds = nowVisibleIds.difference(previouslyVisibleIds);
+          } else {
+            // Collapsing: animate the nodes that are disappearing
+            _newlyAnimatedNodeIds = previouslyVisibleIds.difference(nowVisibleIds);
+          }
+          
           _runLayout();
           // Re-center the viewport after expansion/collapse
           // This ensures the expanded content is visible
@@ -589,6 +622,25 @@ class _MindMapWidgetState extends State<MindMapWidget>
     if (identical(a, b)) return true;
     if (a == null || b == null) return a == b;
     return setEquals(a, b);
+  }
+
+  /// Calculates parent positions for animation
+  /// Maps each node to its parent's position for the slide-in animation
+  /// Only includes nodes that are newly animated
+  Map<String, Offset> _calculateParentPositions() {
+    final parentMap = <String, Offset>{};
+    
+    for (final edge in _visibleEdges) {
+      // Only animate newly visible nodes
+      if (_newlyAnimatedNodeIds.contains(edge.toId)) {
+        final parent = _nodeLookup[edge.fromId];
+        if (parent != null) {
+          parentMap[edge.toId] = parent.position;
+        }
+      }
+    }
+    
+    return parentMap;
   }
 
   @override
@@ -696,6 +748,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
                   offset: offset,
                   scale: scale,
                   childrenMap: _childrenMap,
+                  parentPositions: _calculateParentPositions(),
                   expansionProgress: _expansionProgress,
                 ),
                 size: Size.infinite,

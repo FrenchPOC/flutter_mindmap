@@ -22,6 +22,9 @@ class MindMapPainter extends CustomPainter {
   /// Mapping of node ids to their direct children ids.
   final Map<String, List<String>> childrenMap;
 
+  /// Mapping of node ids to their parent positions (for animation)
+  final Map<String, Offset> parentPositions;
+
   /// Animation progress for expansion/collapse (0.0 to 1.0)
   final double expansionProgress;
 
@@ -43,6 +46,7 @@ class MindMapPainter extends CustomPainter {
   MindMapPainter({
     required this.nodes,
     required this.edges,
+    required this.parentPositions,
     required this.offset,
     required this.scale,
     required this.childrenMap,
@@ -94,7 +98,7 @@ class MindMapPainter extends CustomPainter {
 
     // Draw edges with curved bezier paths (Google Notebook style)
     final edgePaint = Paint()
-      ..color = Colors.grey.shade300.withValues(alpha: expansionProgress)
+      ..color = Colors.grey.shade300
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -159,8 +163,13 @@ class MindMapPainter extends CustomPainter {
     // Draw nodes with pill shape (Google Notebook style)
     for (var node in nodes) {
       final nodeSize = node.size ?? const Size(100, 60);
+      
+      // Animate node position from parent position to final position
+      final parentPos = parentPositions[node.id] ?? node.position;
+      final animatedPosition = Offset.lerp(parentPos, node.position, expansionProgress) ?? node.position;
+      
       final rect = Rect.fromCenter(
-        center: node.position,
+        center: animatedPosition,
         width: nodeSize.width,
         height: nodeSize.height,
       );
@@ -172,16 +181,15 @@ class MindMapPainter extends CustomPainter {
       // Softer, lighter colors for Google Notebook style
       final nodeColor = _lightenColor(node.color, 0.3);
 
-      // Apply expansion animation: fade-in effect (0.0 to 1.0)
-      final animOpacity = expansionProgress;
+      // Full opacity - position animation instead of fade
       canvas.drawRRect(
         rrect,
-        Paint()..color = nodeColor.withValues(alpha: animOpacity),
+        Paint()..color = nodeColor,
       );
 
-      // Subtle border with animation
+      // Subtle border
       final borderPaint = Paint()
-        ..color = _darkenColor(node.color, 0.1).withValues(alpha: animOpacity)
+        ..color = _darkenColor(node.color, 0.1)
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke;
       canvas.drawRRect(rrect, borderPaint);
@@ -194,7 +202,7 @@ class MindMapPainter extends CustomPainter {
         text: TextSpan(
           text: node.label,
           style: TextStyle(
-            color: textColor.withValues(alpha: animOpacity),
+            color: textColor,
             fontSize: 14,
             fontWeight: FontWeight.w600,
             height: 1.3,
@@ -208,8 +216,8 @@ class MindMapPainter extends CustomPainter {
       textPainter.layout(maxWidth: maxWidth - padding * 2);
 
       final textOffset = Offset(
-        node.position.dx - textPainter.width / 2,
-        node.position.dy - textPainter.height / 2,
+        animatedPosition.dx - textPainter.width / 2,
+        animatedPosition.dy - textPainter.height / 2,
       );
       textPainter.paint(canvas, textOffset);
 
