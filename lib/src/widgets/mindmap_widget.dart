@@ -141,23 +141,28 @@ class _MindMapWidgetState extends State<MindMapWidget>
               setState(() {
                 _expansionProgress = expansionController.value;
 
-                // Edges fade in/out after nodes are 70% animated
-                // This creates a staggered effect for both expand and collapse
-                const double fadeStartProgress = 0.7;
-                if (_expansionProgress < fadeStartProgress) {
-                  // For expanding: edges hidden (0.0)
-                  // For collapsing: edges visible (1.0)
-                  _edgeOpacity = _isExpanding ? 0.0 : 1.0;
-                } else {
-                  // Fade over the remaining 30% of animation
-                  final fadeFactor =
-                      (_expansionProgress - fadeStartProgress) /
-                      (1.0 - fadeStartProgress);
-                  if (_isExpanding) {
-                    // Fade in: 0.0 → 1.0
-                    _edgeOpacity = fadeFactor;
+                if (_isExpanding) {
+                  // During EXPAND: edges fade in after nodes are 70% animated
+                  const double fadeStartProgress = 0.7;
+                  if (_expansionProgress < fadeStartProgress) {
+                    _edgeOpacity = 0.0;
                   } else {
-                    // Fade out: 1.0 → 0.0
+                    // Fade in: 0.0 → 1.0 over remaining 30% of animation
+                    final fadeFactor =
+                        (_expansionProgress - fadeStartProgress) /
+                        (1.0 - fadeStartProgress);
+                    _edgeOpacity = fadeFactor;
+                  }
+                } else {
+                  // During COLLAPSE: edges fade out faster, starting at 30%
+                  const double fadeStartProgress = 0.3;
+                  if (_expansionProgress < fadeStartProgress) {
+                    _edgeOpacity = 1.0;
+                  } else {
+                    // Fade out: 1.0 → 0.0 over remaining 70% of animation
+                    final fadeFactor =
+                        (_expansionProgress - fadeStartProgress) /
+                        (1.0 - fadeStartProgress);
                     _edgeOpacity = 1.0 - fadeFactor;
                   }
                 }
