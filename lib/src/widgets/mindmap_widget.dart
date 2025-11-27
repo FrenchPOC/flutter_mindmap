@@ -68,6 +68,24 @@ class MindMapWidget extends StatefulWidget {
   /// Color of the edge lines connecting nodes
   final Color edgeColor;
 
+  /// Tooltip background color
+  final Color tooltipBackgroundColor;
+
+  /// Tooltip text color
+  final Color tooltipTextColor;
+
+  /// Tooltip text size
+  final double tooltipTextSize;
+
+  /// Tooltip border radius
+  final double tooltipBorderRadius;
+
+  /// Tooltip padding
+  final EdgeInsets tooltipPadding;
+
+  /// Tooltip max width
+  final double tooltipMaxWidth;
+
   const MindMapWidget({
     super.key,
     required this.jsonData,
@@ -79,6 +97,15 @@ class MindMapWidget extends StatefulWidget {
     this.initiallyCollapsedNodeIds,
     this.animationDuration = const Duration(seconds: 2),
     this.edgeColor = const Color(0xFFBDBDBD),
+    this.tooltipBackgroundColor = const Color(0xD9000000),
+    this.tooltipTextColor = Colors.white,
+    this.tooltipTextSize = 13.0,
+    this.tooltipBorderRadius = 8.0,
+    this.tooltipPadding = const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 8,
+    ),
+    this.tooltipMaxWidth = 250.0,
   });
 
   @override
@@ -113,6 +140,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
   double _edgeOpacity = 1.0; // Track edge fade-in animation
   bool _isExpanding =
       true; // Track if we're expanding (true) or collapsing (false)
+  String? _hoveredNodeId; // Track which node is currently hovered
 
   @override
   void initState() {
@@ -698,6 +726,73 @@ class _MindMapWidgetState extends State<MindMapWidget>
     return setEquals(a, b);
   }
 
+  void _handleHover(Offset localPosition) {
+    final transformed = (localPosition - offset) / (scale == 0 ? 1.0 : scale);
+
+    String? hoveredId;
+    for (final node in _visibleNodes.reversed) {
+      final nodeSize = node.size ?? const Size(100, 60);
+      final rect = Rect.fromCenter(
+        center: node.position,
+        width: nodeSize.width,
+        height: nodeSize.height,
+      );
+
+      if (rect.contains(transformed)) {
+        hoveredId = node.id;
+        break;
+      }
+    }
+
+    if (_hoveredNodeId != hoveredId) {
+      setState(() {
+        _hoveredNodeId = hoveredId;
+      });
+    }
+  }
+
+  Widget? _buildTooltip() {
+    if (_hoveredNodeId == null) return null;
+
+    final node = _nodeLookup[_hoveredNodeId];
+    if (node?.tooltip == null || node!.tooltip!.isEmpty) return null;
+
+    // Calculate tooltip position relative to node
+    final nodeScreenPos = node.position * scale + offset;
+    final nodeSize = node.size ?? const Size(100, 60);
+
+    return Positioned(
+      left: nodeScreenPos.dx - 20,
+      top: nodeScreenPos.dy - nodeSize.height / 2 - 60,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: widget.tooltipMaxWidth),
+          padding: widget.tooltipPadding,
+          decoration: BoxDecoration(
+            color: widget.tooltipBackgroundColor,
+            borderRadius: BorderRadius.circular(widget.tooltipBorderRadius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            node.tooltip!,
+            style: TextStyle(
+              color: widget.tooltipTextColor,
+              fontSize: widget.tooltipTextSize,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Calculates parent positions for animation
   /// Maps each node to its parent's position for the slide-in animation
   /// Only includes nodes that are newly animated
@@ -833,23 +928,38 @@ class _MindMapWidgetState extends State<MindMapWidget>
             onTapUp: (details) {
               _handleTap(details.localPosition);
             },
-            child: Container(
-              color: widget.backgroundColor,
-              child: CustomPaint(
-                painter: MindMapPainter(
-                  nodes: _visibleNodes,
-                  edges: _visibleEdges,
-                  offset: offset,
-                  scale: scale,
-                  childrenMap: _childrenMap,
-                  parentPositions: _calculateParentPositions(),
-                  expansionProgress: _expansionProgress,
-                  edgeOpacity: _edgeOpacity,
-                  newlyAnimatedEdgeIds: _newlyAnimatedEdgeIds,
-                  isExpanding: _isExpanding,
-                  edgeColor: widget.edgeColor,
-                ),
-                size: Size.infinite,
+            child: MouseRegion(
+              onHover: (event) {
+                _handleHover(event.localPosition);
+              },
+              onExit: (event) {
+                setState(() {
+                  _hoveredNodeId = null;
+                });
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    color: widget.backgroundColor,
+                    child: CustomPaint(
+                      painter: MindMapPainter(
+                        nodes: _visibleNodes,
+                        edges: _visibleEdges,
+                        offset: offset,
+                        scale: scale,
+                        childrenMap: _childrenMap,
+                        parentPositions: _calculateParentPositions(),
+                        expansionProgress: _expansionProgress,
+                        edgeOpacity: _edgeOpacity,
+                        newlyAnimatedEdgeIds: _newlyAnimatedEdgeIds,
+                        isExpanding: _isExpanding,
+                        edgeColor: widget.edgeColor,
+                      ),
+                      size: Size.infinite,
+                    ),
+                  ),
+                  if (_buildTooltip() != null) _buildTooltip()!,
+                ],
               ),
             ),
           ),

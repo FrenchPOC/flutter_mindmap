@@ -31,6 +31,9 @@ class MindMapNode {
   /// Cached size of the rendered node
   Size? size;
 
+  /// Optional tooltip message to display on hover
+  final String? tooltip;
+
   MindMapNode({
     required this.id,
     required this.label,
@@ -41,6 +44,7 @@ class MindMapNode {
     this.color = Colors.blue,
     this.isExpanded = true,
     this.size,
+    this.tooltip,
   });
 
   /// Creates a MindMapNode from JSON data
@@ -73,6 +77,7 @@ class MindMapNode {
           : json.containsKey('collapsed')
           ? json['collapsed'] != true
           : true,
+      tooltip: json['tooltip']?.toString(),
     );
   }
 
@@ -87,6 +92,7 @@ class MindMapNode {
     Color? color,
     bool? isExpanded,
     Size? size,
+    String? tooltip,
   }) {
     return MindMapNode(
       id: id ?? this.id,
@@ -98,6 +104,7 @@ class MindMapNode {
       color: color ?? this.color,
       isExpanded: isExpanded ?? this.isExpanded,
       size: size ?? this.size,
+      tooltip: tooltip ?? this.tooltip,
     );
   }
 }

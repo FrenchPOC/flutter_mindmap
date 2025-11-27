@@ -36,21 +36,26 @@ class _MindMapDemoState extends State<MindMapDemo> {
       "label":
           "Infrared Thermography for Condition Monitoring & Fault Detection",
       "color": "#7B68EE",
+      "tooltip": "Hover over nodes to see additional information",
       "children": [
         {
           "id": "basics",
           "label": "Infrared Technology Basics",
           "color": "#6495ED",
+          "tooltip": "Fundamental principles of infrared thermal imaging",
           "children": [
             {
               "id": "emissivity",
               "label": "Emissivity & Surface Properties",
               "color": "#87CEEB",
+              "tooltip": "Material-dependent thermal radiation properties",
             },
             {
               "id": "wavelengths",
               "label": "Thermal Wavelength Ranges",
               "color": "#87CEEB",
+              "tooltip":
+                  "Spectral bands used in thermal imaging (LWIR, MWIR, SWIR)",
             },
           ],
         },
@@ -58,16 +63,20 @@ class _MindMapDemoState extends State<MindMapDemo> {
           "id": "measurements",
           "label": "Crucial Measurement/Imaging Factors",
           "color": "#6495ED",
+          "tooltip": "Key parameters affecting thermal measurement accuracy",
           "children": [
             {
               "id": "distance",
               "label": "Distance & Resolution",
               "color": "#87CEEB",
+              "tooltip":
+                  "Distance affects spatial resolution and temperature accuracy",
             },
             {
               "id": "ambient",
               "label": "Ambient Conditions",
               "color": "#87CEEB",
+              "tooltip": "Environmental factors like humidity and temperature",
             },
           ],
         },
@@ -288,6 +297,16 @@ class _MindMapDemoState extends State<MindMapDemo> {
               useTreeLayout: useTreeLayout,
               backgroundColor: const Color(0xFFFAFAFA),
               expandAllNodesByDefault: false,
+              edgeColor: Colors.blueGrey,
+              tooltipBackgroundColor: Colors.deepPurple.withOpacity(0.9),
+              tooltipTextColor: Colors.white,
+              tooltipTextSize: 14.0,
+              tooltipBorderRadius: 10.0,
+              tooltipPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              tooltipMaxWidth: 280.0,
             ),
           ),
         ],
