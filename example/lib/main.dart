@@ -27,7 +27,8 @@ class MindMapDemo extends StatefulWidget {
 }
 
 class _MindMapDemoState extends State<MindMapDemo> {
-  bool useTreeLayout = true;
+  MindMapLayoutType _layoutType = MindMapLayoutType.tree;
+  bool _expandAll = false;
   late TextEditingController _jsonController;
   String currentData = '';
   String? errorMessage;
@@ -105,6 +106,38 @@ class _MindMapDemoState extends State<MindMapDemo> {
     }
   }
 
+  Set<String>? _getInitiallyExpandedNodes() {
+    // For bidirectional layout when collapsed, only show the root node
+    if (_layoutType == MindMapLayoutType.bidirectional && !_expandAll) {
+      try {
+        final data = jsonDecode(currentData);
+        final expandedIds = <String>{};
+
+        // Only expand root, not its children
+        if (data is List) {
+          // Hierarchical format
+          for (var item in data) {
+            expandedIds.add(item['id']); // Only expand root
+          }
+        } else if (data is Map && data['nodes'] != null) {
+          // Graph format
+          final nodes = data['nodes'] as List;
+          if (nodes.isNotEmpty) {
+            expandedIds.add(nodes.first['id']); // Only expand root
+          }
+        }
+        return expandedIds;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // For other layouts, respect the expandAll setting
+    if (_expandAll) return null;
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,19 +145,51 @@ class _MindMapDemoState extends State<MindMapDemo> {
         title: const Text('Flutter MindMap - JSON Editor'),
         backgroundColor: Colors.deepPurple,
         actions: [
-          Switch(
-            value: useTreeLayout,
-            onChanged: (value) {
-              setState(() {
-                useTreeLayout = value;
-              });
-            },
-          ),
-          const Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: Text('Tree Layout', style: TextStyle(color: Colors.white)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: DropdownButton<MindMapLayoutType>(
+              value: _layoutType,
+              dropdownColor: Colors.deepPurple,
+              style: const TextStyle(color: Colors.white),
+              iconEnabledColor: Colors.white,
+              underline: Container(height: 1, color: Colors.white),
+              items: const [
+                DropdownMenuItem(
+                  value: MindMapLayoutType.forceDirected,
+                  child: Text('Force Directed'),
+                ),
+                DropdownMenuItem(
+                  value: MindMapLayoutType.tree,
+                  child: Text('Tree Layout'),
+                ),
+                DropdownMenuItem(
+                  value: MindMapLayoutType.bidirectional,
+                  child: Text('Bidirectional'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _layoutType = value;
+                  });
+                }
+              },
             ),
+          ),
+          Row(
+            children: [
+              const Text('Expand All', style: TextStyle(color: Colors.white)),
+              Switch(
+                value: _expandAll,
+                activeColor: Colors.white,
+                activeTrackColor: Colors.deepPurple.shade200,
+                onChanged: (value) {
+                  setState(() {
+                    _expandAll = value;
+                  });
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -204,11 +269,16 @@ class _MindMapDemoState extends State<MindMapDemo> {
                     ),
                   )
                 : MindMapWidget(
-                    key: ValueKey(currentData + useTreeLayout.toString()),
+                    key: ValueKey(
+                      currentData +
+                          _layoutType.toString() +
+                          _expandAll.toString(),
+                    ),
                     jsonData: currentData,
-                    useTreeLayout: useTreeLayout,
+                    layoutType: _layoutType,
                     backgroundColor: const Color(0xFFFAFAFA),
-                    expandAllNodesByDefault: true,
+                    expandAllNodesByDefault: _expandAll,
+                    initiallyExpandedNodeIds: _getInitiallyExpandedNodes(),
                     edgeColor: Colors.blueGrey,
                     tooltipBackgroundColor: Colors.deepPurple.withOpacity(0.9),
                     tooltipTextColor: Colors.white,

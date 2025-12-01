@@ -41,6 +41,7 @@ export 'src/models/mindmap_edge.dart';
 // Export layouts
 export 'src/layouts/force_directed_layout.dart';
 export 'src/layouts/tree_layout.dart';
+export 'src/layouts/bidirectional_layout.dart';
 
 // Export painters
 export 'src/painters/mindmap_painter.dart';

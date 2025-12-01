@@ -55,7 +55,7 @@ class MindMapPainter extends CustomPainter {
   static const double indicatorPaddingFromEdge = 12.0;
 
   /// Border radius for rounded corners
-  static const double borderRadius = 12.0;
+  static const double borderRadius = 6.0;
 
   MindMapPainter({
     required this.nodes,
@@ -156,21 +156,39 @@ class MindMapPainter extends CustomPainter {
         from.position,
       );
 
-      // Draw curved bezier line (horizontal emphasis for Google Notebook style)
+      // Draw curved bezier line with improved spacing
       final path = Path();
       path.moveTo(startPoint.dx, startPoint.dy);
 
-      // Calculate control points for smooth horizontal curve
+      // Calculate control points for smooth curve that avoids nodes
       final horizontalDistance = (endPoint.dx - startPoint.dx).abs();
-      final controlPointOffset = horizontalDistance * 0.5;
+      final verticalDistance = (endPoint.dy - startPoint.dy).abs();
+
+      // Use a larger offset for better curve separation
+      final controlPointOffset = horizontalDistance * 0.6;
+
+      // Add vertical offset to curve away from nodes
+      final verticalCurveOffset = verticalDistance * 0.3;
 
       final controlPoint1 = Offset(
-        startPoint.dx + controlPointOffset,
-        startPoint.dy,
+        startPoint.dx +
+            (endPoint.dx > startPoint.dx
+                ? controlPointOffset
+                : -controlPointOffset),
+        startPoint.dy +
+            (endPoint.dy > startPoint.dy
+                ? verticalCurveOffset
+                : -verticalCurveOffset),
       );
       final controlPoint2 = Offset(
-        endPoint.dx - controlPointOffset,
-        endPoint.dy,
+        endPoint.dx -
+            (endPoint.dx > startPoint.dx
+                ? controlPointOffset
+                : -controlPointOffset),
+        endPoint.dy -
+            (endPoint.dy > startPoint.dy
+                ? verticalCurveOffset
+                : -verticalCurveOffset),
       );
 
       path.cubicTo(
@@ -204,12 +222,18 @@ class MindMapPainter extends CustomPainter {
         height: nodeSize.height,
       );
 
-      // Create pill shape with fully rounded ends
-      final pillRadius = Radius.circular(nodeSize.height / 2);
-      final rrect = RRect.fromRectAndRadius(rect, pillRadius);
+      // Create rounded rectangle shape
+      final rrect = RRect.fromRectAndRadius(
+        rect,
+        const Radius.circular(borderRadius),
+      );
 
       // Softer, lighter colors for Google Notebook style
       final nodeColor = _lightenColor(node.color, 0.3);
+
+      // Add subtle shadow for depth
+      final shadowPath = Path()..addRRect(rrect.shift(const Offset(0, 2)));
+      canvas.drawShadow(shadowPath, Colors.black.withOpacity(0.1), 4.0, true);
 
       // Full opacity - position animation instead of fade
       canvas.drawRRect(rrect, Paint()..color = nodeColor);
@@ -271,32 +295,25 @@ class MindMapPainter extends CustomPainter {
     return hsl.withLightness(lightness).toColor();
   }
 
-  /// Calculates the intersection point between a line and a rectangle
+  /// Calculates the connection point on the node edge
   ///
-  /// Used to find where edges should connect to node borders
+  /// For horizontal layouts, always connects to left/right edges at vertical center
   Offset _getIntersectionPoint(Rect rect, Offset center, Offset target) {
     final dx = target.dx - center.dx;
-    final dy = target.dy - center.dy;
 
-    if (dx == 0 && dy == 0) return center;
+    if (dx == 0) return center;
 
-    final angle = atan2(dy, dx);
-    final halfWidth = rect.width / 2;
-    final halfHeight = rect.height / 2;
+    // Add padding to account for rounded corners and visual spacing
+    const edgePadding = borderRadius + 10.0;
+    final halfWidth = rect.width / 2 - edgePadding;
 
-    // Check which edge the line intersects
-    final tanAngle = tan(angle).abs();
-
-    if (tanAngle < halfHeight / halfWidth) {
-      // Intersects left or right edge
-      final x = dx > 0 ? halfWidth : -halfWidth;
-      final y = x * tan(angle);
-      return Offset(center.dx + x, center.dy + y);
+    // Always connect horizontally (left or right edge) at vertical center
+    if (dx > 0) {
+      // Target is to the right, connect from right edge
+      return Offset(center.dx + halfWidth, center.dy);
     } else {
-      // Intersects top or bottom edge
-      final y = dy > 0 ? halfHeight : -halfHeight;
-      final x = y / tan(angle);
-      return Offset(center.dx + x, center.dy + y);
+      // Target is to the left, connect from left edge
+      return Offset(center.dx - halfWidth, center.dy);
     }
   }
 

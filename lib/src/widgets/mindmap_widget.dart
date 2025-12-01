@@ -8,12 +8,25 @@ import '../models/mindmap_node.dart';
 import '../models/mindmap_edge.dart';
 import '../layouts/force_directed_layout.dart';
 import '../layouts/tree_layout.dart';
+import '../layouts/bidirectional_layout.dart';
 import '../painters/mindmap_painter.dart';
+
+/// Available layout algorithms for the mind map
+enum MindMapLayoutType {
+  /// Force-directed physics-based layout
+  forceDirected,
+
+  /// Hierarchical tree layout (left-to-right)
+  tree,
+
+  /// Balanced tree layout (center-outwards)
+  bidirectional,
+}
 
 /// Main widget for displaying an interactive mind map
 ///
-/// Supports pan and zoom gestures, and can render using either
-/// force-directed or tree layout algorithms
+/// Supports pan and zoom gestures, and can render using various
+/// layout algorithms
 class MindMapWidget extends StatefulWidget {
   /// JSON data containing the mind map structure
   ///
@@ -35,7 +48,13 @@ class MindMapWidget extends StatefulWidget {
   ///    ```
   final String jsonData;
 
+  /// The layout algorithm to use
+  final MindMapLayoutType layoutType;
+
   /// Whether to use tree layout instead of force-directed layout
+  ///
+  /// Deprecated: Use [layoutType] instead.
+  @Deprecated('Use layoutType instead')
   final bool useTreeLayout;
 
   /// Background color of the canvas
@@ -89,6 +108,7 @@ class MindMapWidget extends StatefulWidget {
   const MindMapWidget({
     super.key,
     required this.jsonData,
+    this.layoutType = MindMapLayoutType.forceDirected,
     this.useTreeLayout = false,
     this.backgroundColor = const Color(0xFFF5F5F5),
     this.allowNodeOverlap = true,
@@ -148,7 +168,11 @@ class _MindMapWidgetState extends State<MindMapWidget>
     animationController =
         AnimationController(vsync: this, duration: widget.animationDuration)
           ..addListener(() {
-            if (!widget.useTreeLayout && mounted && _visibleNodes.isNotEmpty) {
+            final isForceDirected =
+                !widget.useTreeLayout &&
+                widget.layoutType == MindMapLayoutType.forceDirected;
+
+            if (isForceDirected && mounted && _visibleNodes.isNotEmpty) {
               setState(() {
                 ForceDirectedLayout.calculate(
                   _visibleNodes,
@@ -228,7 +252,11 @@ class _MindMapWidgetState extends State<MindMapWidget>
           }
         });
 
-    if (!widget.useTreeLayout) {
+    final isForceDirected =
+        !widget.useTreeLayout &&
+        widget.layoutType == MindMapLayoutType.forceDirected;
+
+    if (isForceDirected) {
       animationController.repeat();
     }
 
@@ -239,15 +267,20 @@ class _MindMapWidgetState extends State<MindMapWidget>
   void didUpdateWidget(MindMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    final isForceDirected =
+        !widget.useTreeLayout &&
+        widget.layoutType == MindMapLayoutType.forceDirected;
+
     if (oldWidget.animationDuration != widget.animationDuration) {
       animationController.duration = widget.animationDuration;
-      if (!widget.useTreeLayout && !animationController.isAnimating) {
+      if (isForceDirected && !animationController.isAnimating) {
         animationController.repeat();
       }
     }
 
-    if (oldWidget.useTreeLayout != widget.useTreeLayout) {
-      if (widget.useTreeLayout) {
+    if (oldWidget.useTreeLayout != widget.useTreeLayout ||
+        oldWidget.layoutType != widget.layoutType) {
+      if (!isForceDirected) {
         animationController.stop();
       } else {
         animationController.repeat();
@@ -257,6 +290,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
     final shouldReparse =
         oldWidget.jsonData != widget.jsonData ||
         oldWidget.useTreeLayout != widget.useTreeLayout ||
+        oldWidget.layoutType != widget.layoutType ||
         oldWidget.expandAllNodesByDefault != widget.expandAllNodesByDefault ||
         !_setsEqual(
           oldWidget.initiallyExpandedNodeIds,
@@ -441,8 +475,14 @@ class _MindMapWidgetState extends State<MindMapWidget>
   void _runLayout() {
     if (_visibleNodes.isEmpty) return;
 
-    if (widget.useTreeLayout) {
+    // Ensure node sizes are calculated BEFORE layout
+    // This fixes the overlap issue where layout didn't know the correct heights
+    _ensureNodeSizes();
+
+    if (widget.useTreeLayout || widget.layoutType == MindMapLayoutType.tree) {
       TreeLayout.calculate(_visibleNodes, _visibleEdges, _canvasSize);
+    } else if (widget.layoutType == MindMapLayoutType.bidirectional) {
+      BidirectionalLayout.calculate(_visibleNodes, _visibleEdges, _canvasSize);
     } else {
       ForceDirectedLayout.calculate(_visibleNodes, _visibleEdges, _canvasSize);
     }
@@ -451,7 +491,6 @@ class _MindMapWidgetState extends State<MindMapWidget>
       _resolveOverlaps();
     }
 
-    _ensureNodeSizes();
     _applyAutoCenterIfNeeded();
   }
 
