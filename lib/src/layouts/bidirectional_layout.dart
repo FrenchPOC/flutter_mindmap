@@ -8,7 +8,7 @@ import '../models/mindmap_edge.dart';
 /// and children distributed to both the left and right sides.
 class BidirectionalLayout {
   /// Horizontal spacing between depth levels
-  static const double horizontalSpacing = 350.0;
+  static const double horizontalSpacing = 200.0;
 
   /// Minimum vertical spacing between sibling nodes
   static const double minVerticalSpacing = 20.0;
